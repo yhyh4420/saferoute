@@ -20,6 +20,7 @@ private const val TAG = "SafeRoute"
 /** School gates are typically closed outside these hours and at weekends (VALIDATION V14). */
 private const val GATES_OPEN_FROM = 6
 private const val GATES_OPEN_UNTIL = 18
+private const val MAP_MIN_PAD_DEG = 0.0015
 
 /** The nearest destination that is never a school yard, from the pack's `unlocked` tree. */
 data class Alternative(val shelter: Shelter, val distanceM: Int, val walkMinutes: Int)
@@ -35,9 +36,17 @@ data class Guidance(
     val computeMs: Double,
     /** Set when the destination is a school yard and it is night or a weekend. */
     val lockWarning: LockWarning? = null,
+    val map: MapData? = null,
 )
 
 data class LockWarning(val alternative: Alternative?)
+
+/** Offline base map around the route, drawn from the pack itself. */
+class MapData(
+    val minLat: Double, val minLon: Double, val maxLat: Double, val maxLon: Double,
+    val streets: List<Pair<Pair<Double, Double>, Pair<Double, Double>>>,
+    val shelters: List<Shelter>,
+)
 
 sealed interface AlertResult {
     data class Ok(val guidance: Guidance) : AlertResult
@@ -62,8 +71,22 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
         val ms = (SystemClock.elapsedRealtimeNanos() - t0) / 1e6
         Log.i(TAG, "alert_compute_ms=%.2f hazard=%s profile=%s nodes=%d".format(ms, hazard, profile, route.nodes.size))
         return AlertResult.Ok(
-            Guidance(shelter, totalM.roundToInt(), minutes, bearingAlong(fix, points), points, snapM, ms, lock)
+            Guidance(shelter, totalM.roundToInt(), minutes, bearingAlong(fix, points), points, snapM, ms, lock,
+                mapAround(points + (fix.lat to fix.lon) + (shelter.lat to shelter.lon) +
+                    listOfNotNull(lock?.alternative?.shelter?.let { it.lat to it.lon }), hazard))
         )
+    }
+
+    private fun mapAround(points: List<Pair<Double, Double>>, hazard: String): MapData {
+        val lats = points.map { it.first }
+        val lons = points.map { it.second }
+        // Pad the route box by a quarter of its size, at least ~150 m, so nearby streets show.
+        val padLat = maxOf((lats.max() - lats.min()) / 4, MAP_MIN_PAD_DEG)
+        val padLon = maxOf((lons.max() - lons.min()) / 4, MAP_MIN_PAD_DEG)
+        val box = doubleArrayOf(lats.min() - padLat, lons.min() - padLon, lats.max() + padLat, lons.max() + padLon)
+        val streets = pack.streetsIn(box[0], box[1], box[2], box[3])
+            .map { (a, b) -> (pack.latOf(a) to pack.lonOf(a)) to (pack.latOf(b) to pack.lonOf(b)) }
+        return MapData(box[0], box[1], box[2], box[3], streets, db.suitableIn(hazard, box[0], box[1], box[2], box[3]))
     }
 
     private fun alternative(node: Int, snapM: Double, hazard: String, stepFree: Boolean): Alternative? {

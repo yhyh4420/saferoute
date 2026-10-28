@@ -91,6 +91,24 @@ class RoutePack private constructor(buf: ByteBuffer) {
         return Route(path.toIntArray(), tree.dist[start].toInt() and 0xFFFF, tree.shelter[start].toInt() and 0xFFFF)
     }
 
+    /**
+     * Street segments inside a box, as node pairs. The union of every tree's next-pointers covers
+     * almost every walkable street, so the pack doubles as an offline base map (no tiles).
+     */
+    fun streetsIn(minLat: Double, minLon: Double, maxLat: Double, maxLon: Double): List<Pair<Int, Int>> {
+        val seen = HashSet<Long>()
+        val out = ArrayList<Pair<Int, Int>>()
+        grid.forEachNodeIn(minLat, minLon, maxLat, maxLon) { a ->
+            for (t in trees.values) {
+                val b = t.next[a]
+                if (b < 0 || b == a) continue
+                val key = minOf(a, b).toLong() * nodeCount + maxOf(a, b)
+                if (seen.add(key)) out.add(a to b)
+            }
+        }
+        return out
+    }
+
     /** Pre-built cell index from the pack: sorted cell keys, offsets into [order], node ids by cell. */
     private class Grid(
         private val lat: IntBuffer,
@@ -122,6 +140,14 @@ class RoutePack private constructor(buf: ByteBuffer) {
                 if (best >= 0 && ring >= 1) break
             }
             return if (best < 0) null else best to sqrt(bestD) * METRES_PER_DEG
+        }
+
+        fun forEachNodeIn(minLat: Double, minLon: Double, maxLat: Double, maxLon: Double, f: (Int) -> Unit) {
+            for (cy in floor(minLat / CELL_DEG).toLong()..floor(maxLat / CELL_DEG).toLong())
+                for (cx in floor(minLon / CELL_DEG).toLong()..floor(maxLon / CELL_DEG).toLong()) {
+                    val c = find(cy * CELL_KEY + cx)
+                    if (c >= 0) for (k in start[c] until start[c + 1]) f(order[k])
+                }
         }
 
         private fun find(key: Long): Int {

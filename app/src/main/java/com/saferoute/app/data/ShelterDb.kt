@@ -60,6 +60,19 @@ class ShelterDb(context: Context, assetName: String) {
         }
     }
 
+    /** Suitable shelters inside a lat/lon box (map markers). */
+    fun suitableIn(hazard: String, minLat: Double, minLon: Double, maxLat: Double, maxLon: Double): List<Shelter> =
+        db.rawQuery(
+            "SELECT idx, id, name, lat, lon, facility, address, source, may_lock FROM shelter " +
+                "WHERE ',' || hazards || ',' LIKE ? AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?",
+            arrayOf("%,$hazard,%", "$minLat", "$maxLat", "$minLon", "$maxLon"),
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) add(Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3),
+                    c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1))
+            }
+        }
+
     fun byId(id: String): Shelter? = db.rawQuery("SELECT idx FROM shelter WHERE id = ?", arrayOf(id))
         .use { c -> if (c.moveToFirst()) shelter(c.getInt(0)) else null }
 

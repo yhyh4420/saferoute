@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -274,10 +276,12 @@ private fun LockWarningCard(w: LockWarning) {
 @Composable
 private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
     val pts = buildList { fix?.let { add(it.lat to it.lon) }; addAll(g.routeLatLon) }
-    Box(Modifier.fillMaxWidth().height(220.dp).background(Color(0xFFF2F2F2))) {
-        Canvas(Modifier.fillMaxSize().padding(12.dp)) {
-            val minLat = pts.minOf { it.first }; val maxLat = pts.maxOf { it.first }
-            val minLon = pts.minOf { it.second }; val maxLon = pts.maxOf { it.second }
+    val m = g.map
+    val alt = g.lockWarning?.alternative?.shelter
+    Box(Modifier.fillMaxWidth().height(280.dp).clipToBounds().background(Color(0xFFF7F5F0)).testTag("route_map")) {
+        Canvas(Modifier.fillMaxSize().padding(8.dp)) {
+            val minLat = m?.minLat ?: pts.minOf { it.first }; val maxLat = m?.maxLat ?: pts.maxOf { it.first }
+            val minLon = m?.minLon ?: pts.minOf { it.second }; val maxLon = m?.maxLon ?: pts.maxOf { it.second }
             val kx = cos(Math.toRadians((minLat + maxLat) / 2))
             val spanY = (maxLat - minLat).coerceAtLeast(1e-5)
             val spanX = ((maxLon - minLon) * kx).coerceAtLeast(1e-5)
@@ -286,12 +290,24 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
                 ((ll.second - minLon) * kx * scale).toFloat() + (size.width - (spanX * scale).toFloat()) / 2,
                 size.height - ((ll.first - minLat) * scale).toFloat() - (size.height - (spanY * scale).toFloat()) / 2,
             )
+            m?.streets?.forEach { (a, b) -> drawLine(Color(0xFFCFCAC0), p(a), p(b), strokeWidth = 3f) }
+            m?.shelters?.forEach { s ->
+                if (s.idx != g.shelter.idx && s.idx != alt?.idx)
+                    drawCircle(accent.copy(alpha = 0.45f), radius = 9f, center = p(s.lat to s.lon), style = Stroke(width = 4f))
+            }
+            alt?.let { drawCircle(Color(0xFFE0A100), radius = 16f, center = p(it.lat to it.lon)) }
             val path = Path().apply { pts.forEachIndexed { i, ll -> val o = p(ll); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
-            drawPath(path, accent, style = Stroke(width = 8f))
-            drawCircle(Color.Black, radius = 14f, center = p(pts.first()))
-            drawCircle(accent, radius = 20f, center = p(pts.last()))
+            drawPath(path, accent, style = Stroke(width = 9f))
+            // The route ends at the street node nearest the shelter; show the last few metres too.
+            drawLine(accent, p(pts.last()), p(g.shelter.lat to g.shelter.lon), strokeWidth = 5f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f)))
+            drawCircle(Color.White, radius = 17f, center = p(pts.first()))
+            drawCircle(Color(0xFF1565C0), radius = 12f, center = p(pts.first()))
+            drawCircle(accent, radius = 20f, center = p(g.shelter.lat to g.shelter.lon))
         }
-        Text("경로 (북쪽 위)", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.align(Alignment.TopStart).padding(6.dp))
+        Text("오프라인 지도 · 북쪽 위   🔵 나  🔴 목적지  ○ 대피소" + if (alt != null) "  🟡 대안" else "",
+            fontSize = 11.sp, color = Color.DarkGray,
+            modifier = Modifier.align(Alignment.TopStart).background(Color(0xCCFFFFFF)).padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 

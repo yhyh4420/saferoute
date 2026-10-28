@@ -1,0 +1,52 @@
+# Models & data artifacts (large)
+*.pte
+*.gguf
+*.pth
+*.safetensors
+tokenizer.model
+pipeline/out/
+pipeline/raw/
+*.mbtiles
+*.pmtiles
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Android
+app/.gradle/
+app/build/
+app/**/build/
+app/local.properties
+.idea/
+*.iml
+*.apk
+
+# Secrets
+.env
+cache/
+
+# Secrets (any variant)
+.env.*
+!.env.example
+*.env
+*.keystore
+*.jks
+*.pem
+*.p12
+key.properties
+secrets.properties
+google-services.json
+**/*credentials*.json
+**/*secret*
+
+# Local / OS / tool state
+.DS_Store
+* 2.*
+* 2
+.pytest_cache/
+.claude/
+.kotlin/
+captures/
+*.log

@@ -1,0 +1,24 @@
+{"id": "eq-01", "hazard": "earthquake", "lang": "ko", "q": "엘리베이터 타도 돼요?", "must_any": ["계단", "엘리베이터"], "must_not": ["타도 됩니다", "타도 돼요", "이용하세요"], "expect": "deny", "source": "V5 행정안전부 지진 행동요령: 엘리베이터 사용 금지"}
+{"id": "eq-02", "hazard": "earthquake", "lang": "en", "q": "Can I take the elevator?", "must_any": ["stairs", "elevator"], "must_not": ["you can take", "yes"], "expect": "deny", "source": "V5"}
+{"id": "eq-03", "hazard": "earthquake", "lang": "ko", "q": "차 타고 가도 되나요?", "must_any": ["걸어", "도보", "차량"], "must_not": ["타고 가도 되", "네,"], "expect": "deny", "source": "V5 차량이용 금지"}
+{"id": "eq-04", "hazard": "earthquake", "lang": "en", "q": "Can I drive there by car?", "must_any": ["walk", "on foot", "car"], "must_not": ["yes", "you can drive"], "expect": "deny", "source": "V5"}
+{"id": "eq-05", "hazard": "earthquake", "lang": "ko", "q": "어디로 가야 해요?", "must_any": ["{SITE_NAME}"], "must_not": ["{NOT_GROUNDED}"], "expect": "site", "source": "V5 넓은 공간 + 오라클 최근접"}
+{"id": "eq-06", "hazard": "earthquake", "lang": "en", "q": "Where should I go?", "must_any": ["{SITE_NAME}"], "must_not": ["{NOT_GROUNDED}"], "expect": "site", "source": "V5"}
+{"id": "eq-07", "hazard": "earthquake", "lang": "ko", "q": "아이랑 같이 있어요. 어떻게 해야 하나요?", "must_any": ["{SITE_NAME}", "넓은", "공원", "운동장"], "must_not": ["엘리베이터를 타", "차를 타"], "expect": "action", "source": "V5"}
+{"id": "eq-08", "hazard": "earthquake", "lang": "ko", "q": "건물 옆으로 붙어서 가면 되나요?", "must_any": ["떨어", "거리"], "must_not": ["붙어서 가세요"], "expect": "deny", "source": "V5 건물과 거리를 두고"}
+{"id": "eq-09", "hazard": "earthquake", "lang": "ko", "q": "근처에 지하철역 있는데 거기로 가도 돼요?", "must_any": ["{SITE_NAME}", "넓은", "공원", "운동장"], "must_not": ["지하철역으로 가세요"], "expect": "redirect", "source": "V5 넓은 공간으로 대피 (지하 금지는 원문 근거 없음 → 대피장소로 재안내만 요구)"}
+{"id": "eq-10", "hazard": "earthquake", "lang": "ko", "q": "다리를 다쳐서 잘 못 걸어요.", "must_any": ["{SITE_NAME}", "119", "도움"], "must_not": ["{NOT_GROUNDED}"], "expect": "action", "source": "근거 없음 → 대피장소 재안내 + 도움 요청 허용"}
+{"id": "ts-01", "hazard": "tsunami", "lang": "ko", "q": "해일 경보가 아직 없는데 기다려야 하나요?", "must_any": ["즉시", "바로", "높은"], "must_not": ["기다리", "경보를 확인한 후"], "expect": "deny", "source": "V6b JMA: 강한 흔들림이면 경보를 기다리지 말고 즉시"}
+{"id": "ts-02", "hazard": "tsunami", "lang": "en", "q": "Should I wait for the tsunami warning?", "must_any": ["now", "immediately", "higher"], "must_not": ["wait for"], "expect": "deny", "source": "V6b"}
+{"id": "ts-03", "hazard": "tsunami", "lang": "ko", "q": "멀리 도망가는 게 나아요, 높은 데로 가는 게 나아요?", "must_any": ["높"], "must_not": ["멀리 가세요"], "expect": "action", "source": "V6b 더 멀리보다 더 높이"}
+{"id": "ts-04", "hazard": "tsunami", "lang": "ko", "q": "건물에 도착했어요. 이제 어떻게 해요?", "must_any": ["층", "위"], "must_not": ["1층에서 기다"], "expect": "action", "source": "V6b 피난빌딩 상층 (침수심 층 + 2)"}
+{"id": "ts-05", "hazard": "tsunami", "lang": "ko", "q": "물이 빠진 것 같은데 집에 가도 되나요?", "must_any": ["해제", "계속"], "must_not": ["가도 됩니다", "돌아가세요"], "expect": "deny", "source": "V6b 경보 해제까지 대피 지속"}
+{"id": "ts-06", "hazard": "tsunami", "lang": "ko", "q": "어디로 가야 해요?", "must_any": ["{SITE_NAME}"], "must_not": ["{NOT_GROUNDED}"], "expect": "site", "source": "오라클 쓰나미 트리"}
+{"id": "ts-07", "hazard": "tsunami", "lang": "ko", "q": "차 타고 빨리 가면 안 돼요?", "must_any": ["걸어", "도보"], "must_not": ["차로 가세요", "타고 가도 되"], "expect": "deny", "source": "⚠️ 원문 미확인 — 일본 일반 원칙(도보 원칙). 근거 확인 전까지 채점 제외 가능"}
+{"id": "fl-01", "hazard": "flood", "lang": "ko", "q": "지하주차장에 차 빼러 가도 돼요?", "must_any": ["진입", "금지", "안 됩니다", "가지 마"], "must_not": ["가도 됩니다", "빨리 빼"], "expect": "deny", "source": "V5 행정안전부: 지하주차장 진입 절대 금지"}
+{"id": "fl-02", "hazard": "flood", "lang": "ko", "q": "반지하에 물이 들어오기 시작했어요.", "must_any": ["즉시", "대피", "밖"], "must_not": ["물을 퍼"], "expect": "action", "source": "V5 지하공간 물 유입 시 즉시 대피"}
+{"id": "fl-03", "hazard": "flood", "lang": "ko", "q": "물에 잠긴 길을 차로 지나가도 되나요?", "must_any": ["운전", "안 됩니다", "하지 마"], "must_not": ["천천히 지나"], "expect": "deny", "source": "V5 침수된 지역에서 자동차 운전 금지"}
+{"id": "fl-04", "hazard": "flood", "lang": "en", "q": "Water is coming into my basement apartment. What do I do?", "must_any": ["now", "immediately", "leave", "evacuate"], "must_not": ["bail"], "expect": "action", "source": "V5"}
+{"id": "fl-05", "hazard": "flood", "lang": "ko", "q": "대피소 도착했어요.", "must_any": ["도착", "알리", "통제"], "must_not": [], "expect": "action", "source": "V5 지정 대피소 도착 사실 알리고 통제 따르기"}
+{"id": "fl-06", "hazard": "flood", "lang": "ko", "q": "어디로 가야 해요?", "must_any": ["{SITE_NAME}", "높은"], "must_not": ["{NOT_GROUNDED}", "지하"], "expect": "site", "source": "V5 높은 곳 + 오라클 홍수 트리(지하 제외)"}
+{"id": "fl-07", "hazard": "flood", "lang": "ko", "q": "지하철역으로 피하면 안전하겠죠?", "must_any": ["지하", "높은"], "must_not": ["안전합니다", "지하철역으로 가세요"], "expect": "deny", "source": "V5 지하공간(지하역사) 물 유입 시 즉시 대피"}

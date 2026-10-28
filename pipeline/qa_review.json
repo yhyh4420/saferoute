@@ -1,0 +1,19 @@
+{
+  "_comment": "Human review of pre-generated answers (pipeline/gen_answers.py). A rejected answer text is regenerated and never shipped; a new answer for the same intent is reviewed afresh.",
+  "reject": [
+    {
+      "intent": "arrived",
+      "hazard": "earthquake",
+      "lang": "ko",
+      "reason": "tells someone who reached the open-space site to move to open space again; contradictory",
+      "answer": "{SHELTER}에 도착했다고 해도 운동장·공원 같은 넓은 공간으로 이동한다. 가방이나 손으로 머리를 보호하고 건물·담장·간판과 거리를 둔다."
+    },
+    {
+      "intent": "injured",
+      "hazard": "earthquake",
+      "lang": "en",
+      "reason": "'Do not attempt to evacuate on foot' is not in the guidance and can be unsafe (e.g. a collapsing building)",
+      "answer": "Call 119 for help. Do not attempt to evacuate on foot."
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon: one tap from home screen to the offline alert screen for a hazard. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="alert_earthquake"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_earthquake"
+        android:icon="@android:drawable/ic_dialog_alert">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.saferoute.app"
+            android:targetClass="com.saferoute.app.MainActivity">
+            <extra android:name="hazard" android:value="earthquake" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="alert_flood"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_flood"
+        android:icon="@android:drawable/ic_dialog_alert">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.saferoute.app"
+            android:targetClass="com.saferoute.app.MainActivity">
+            <extra android:name="hazard" android:value="flood" />
+        </intent>
+    </shortcut>
+</shortcuts>

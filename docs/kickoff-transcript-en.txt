@@ -1,0 +1,380 @@
+[00:00:35] Hello everyone. My name is Ivan. I'm with Silicon Valley.
+[00:00:39] We host some of the largest hackathons in the world, and today
+[00:00:43] we're excited to partner with Meta and bring you the Meta Global
+[00:00:47] AI Developer Hackathon. Now, folks, I don't know about you, but
+[00:00:52] there's not many hackathons in the world that give out $1 million
+[00:00:56] in prizes. So if you're here today, you're one of the lucky folks
+[00:01:00] that got selected to participate in the million-dollar
+[00:01:03] hackathon, the Meta Global AI Developer Hackathon.
+[00:01:08] Folks, we have a packed agenda today.
+[00:01:10] I want to introduce some people from Meta, and then some of our
+[00:01:13] partners as well who will be helping out with the hackathon.
+[00:01:18] Afterwards, we're going to get into some housekeeping rules, and
+[00:01:21] then we'll get started with the hack.
+[00:01:25] Also, as a reminder,
+[00:01:27] for the live chat of the session, please post in the Discord general
+[00:01:31] chat. If you're not in the Discord yet, please go to that Discord link that
+[00:01:35] you can find the details, but I'll talk about all that in a little bit.
+[00:01:39] First off, I'd like to welcome to the stage Saurabh Baji,
+[00:01:43] the engineering director for the Model API at Meta.
+[00:01:47] Saurabh, welcome.
+[00:01:50] Thank you, Ivan.
+[00:01:52] Welcome, everyone, to the
+[00:01:55] Meta
+[00:01:56] Global AI Hackathon. Wherever you're joining from, thank
+[00:02:00] you for bringing your time, your ideas, and your energy.
+[00:02:05] One of the most exciting things about a global virtual hackathon
+[00:02:09] is the range of perspectives it brings together.
+[00:02:12] You're all building in different communities for different users with
+[00:02:16] different problems in mind.
+[00:02:19] That gives us an incredible starting point.
+[00:02:22] Each of you brings knowledge of something that could work better,
+[00:02:26] and this is an opportunity to turn that knowledge into something people can
+[00:02:30] use.
+[00:02:32] At Meta Superintelligence Labs, we've been moving quickly to advance our
+[00:02:36] models and put more capable tools into developers' hands.
+[00:02:41] Our goal is to compress the time between an idea
+[00:02:45] and a working product.
+[00:02:48] As models improve at reasoning, coding, and working
+[00:02:52] across different kinds of media,
+[00:02:54] more of that process becomes accessible
+[00:02:57] to more builders.
+[00:02:59] This hackathon is an opportunity to test an idea,
+[00:03:03] get a prototype working,
+[00:03:05] learn where it breaks, and improve it,
+[00:03:08] all within a concentrated period of building.
+[00:03:12] And what you build helps us learn, too,
+[00:03:15] which capabilities are the most useful,
+[00:03:17] where the tools need to improve, and what developers want
+[00:03:21] to do next.
+[00:03:23] You have several ways to get started, depending on what you want to build.
+[00:03:28] Muse Spark and Muse Wonder on the Meta Model API
+[00:03:33] give you reasoning capabilities for applications and agents
+[00:03:37] that need to work through complex tasks.
+[00:03:40] Muse Code can help you move from an idea into implementation
+[00:03:45] with agents that can work across a project, write and test code,
+[00:03:50] and support longer engineering tasks while you steer.
+[00:03:55] For projects involving images or speech,
+[00:03:58] you can explore Muse Image and Muse Voice Transcribe.
+[00:04:03] Muse Glimmer and Muse Spark Open
+[00:04:06] also open up possibilities for building locally
+[00:04:09] on your own hardware or through our partners Fireworks, Bayston,
+[00:04:13] and Model.
+[00:04:16] We are helping cover the compute with $150
+[00:04:19] in free Model API credits, so you have room to experiment.
+[00:04:24] Choose the tools that fit your problem, and start building.
+[00:04:28] Check the email from the event to claim your credits.
+[00:04:32] Start with the problem you understand.
+[00:04:35] Think about a task that you have to repeat,
+[00:04:39] a process that takes too long, or something that people in your
+[00:04:42] community struggle to access.
+[00:04:46] Maybe you build an agent that helps a small business work through a
+[00:04:50] complicated workflow.
+[00:04:52] Maybe it's a tool that helps someone make sense of information,
+[00:04:56] create visual content,
+[00:04:58] or interact with software through speech.
+[00:05:02] You might build something that makes developers more effective
+[00:05:06] or bring AI into a field where you have expertise and an
+[00:05:09] opportunity that others have missed.
+[00:05:13] Pick a clear user and a clear job to help them accomplish.
+[00:05:18] That'll help you decide what to build first
+[00:05:21] and what a useful result looks like.
+[00:05:25] Aim for a working prototype that you can demonstrate.
+[00:05:29] Put it in someone's hands early, watch how they use it, and let that
+[00:05:32] feedback shape your next iteration.
+[00:05:37] We are backing this hackathon with a million dollars cash prize
+[00:05:41] pool, and we are excited to recognize what you build.
+[00:05:45] We also hope everyone leaves with something they can carry forward, a working
+[00:05:49] project, a new skill, a collaborator, or an idea that
+[00:05:53] they're ready to keep developing.
+[00:05:56] So use this time to really stretch your understanding of what these tools can do.
+[00:06:01] Try an approach that you haven't used before.
+[00:06:03] Ask questions, share what you learn, and help other teams get
+[00:06:07] past blockers.
+[00:06:09] As you build,
+[00:06:10] keep checking whether your prototype delivers the result you intended.
+[00:06:15] Look at the output, test the workflow, and learn from the failures.
+[00:06:20] Those habits and the connections you make here will keep paying off
+[00:06:24] long after this hackathon ends.
+[00:06:28] Many of the best ideas at Meta started at a hackathon table.
+[00:06:33] This week, that table stretches across the world.
+[00:06:38] You bring the problems, the creativity, and the perspective.
+[00:06:41] We are here to give you the tools that turn those ideas into working
+[00:06:45] software.
+[00:06:46] We're excited to see what you make and what you discover along the way.
+[00:06:50] So thank you once again for being here, and let's start building.
+[00:06:55] Amazing. Thank you so much, Saurabh.
+[00:06:57] Super great overview of the event and super inspiring.
+[00:07:01] Folks, next up, we have a few partners from the
+[00:07:05] ecosystem that I'd love to introduce as well who are
+[00:07:08] supporting this event.
+[00:07:11] First up, we've got Aishwarya Goel, who is the
+[00:07:15] GTM at Baseten. Please welcome Aishwarya.
+[00:07:19] Thanks, Evan. Hi, everyone. I'm Aishwarya from Baseten.
+[00:07:23] I'm on the marketing team.
+[00:07:25] So yeah, we are very excited to be part of the Meta Global Hackathon.
+[00:07:29] A quick intro about us. At Baseten, we do inference and
+[00:07:33] post-training for open and custom models.
+[00:07:36] We are helping companies like Lovable, Cursor, Harvey, Notion,
+[00:07:40] OpenEvidence, and many more, to host some of their
+[00:07:43] mission-critical workloads at scale with us.
+[00:07:47] So quickly about the hackathon, we are going
+[00:07:51] to be supporting the selected builders with $100
+[00:07:55] credits and up to 2 million in terms of TPM.
+[00:07:59] So yeah, once you're selected, expect an email from us with all the
+[00:08:03] details.
+[00:08:05] If you have any thoughts, questions, ideas, I'll be hanging out on the Discord
+[00:08:09] group, so feel free to reach out. And yeah, we are very
+[00:08:12] excited to see what you ship with us and have fun
+[00:08:16] building.
+[00:08:19] Thank you so much, Aishwarya. And as mentioned, please visit the
+[00:08:22] Baseten Discord channel that we have in the Discord
+[00:08:26] as well.
+[00:08:27] Next up, we've got Andrew Hin, who is the developer relations
+[00:08:31] engineer at Modal.
+[00:08:34] Hey.
+[00:08:35] So I'm Andrew.
+[00:08:37] Yeah, so Modal is cloud infrastructure, where you can do everything from
+[00:08:41] getting serverless GPUs to doing inference, sandboxes, and
+[00:08:45] training.
+[00:08:46] So we're helping out with $100 in credits for the first
+[00:08:50] 1,000 teams.
+[00:08:52] And feel free to tag me in the Discord channel.
+[00:08:57] Awesome. Thank you so much, Andrew.
+[00:09:00] And as a reminder, please visit that Modal Discord channel as well.
+[00:09:04] Awesome. And last but not least, we've got Sinan Ozdemir,
+[00:09:09] who is the head of AI developer education at Fireworks AI.
+[00:09:13] Sinan, the floor is yours.
+[00:09:16] How's it going, everyone? Good morning, good afternoon, good evening, wherever you
+[00:09:19] might be. Yeah. So my name's Sinan.
+[00:09:21] I'm with the Fireworks team, as mentioned, the head of developer
+[00:09:25] education. We're also going to be offering credits.
+[00:09:27] There's a Discord channel for Fireworks in there.
+[00:09:30] I'll be putting some more information in there in just a moment on how to redeem
+[00:09:33] and how to use. But if you're not familiar with Fireworks, you'll never believe
+[00:09:36] this. We're also a platform providing a lot of support in
+[00:09:41] inference and training of models.
+[00:09:43] I myself have been training language models for a little over 10 years.
+[00:09:47] Yes, you heard me right, even before the transformer was even invented.
+[00:09:51] And the people at Fireworks are some of the best engineers out there
+[00:09:55] in both the world of inference and in training.
+[00:09:57] So if you have any questions around using a
+[00:10:00] model, benchmarking a model, training a model, I'll also be in the Discord
+[00:10:03] answering questions about how to do all that stuff. So yeah, I'm excited.
+[00:10:06] Stoked to be here. Back to you.
+[00:10:09] Awesome. Thank you so much, Sinan. Very excited to have you all on board.
+[00:10:13] Very excited to have you supporting the hackathon as well.
+[00:10:17] And as a reminder, please visit those Discord channels and post your questions
+[00:10:20] there and redeem those credits.
+[00:10:22] Folks,
+[00:10:24] I am now going to get into the logistics.
+[00:10:26] Some minor housekeeping rules around the hackathon
+[00:10:30] itself. A lot of what I'm going through here is
+[00:10:34] in the event details page that is located on
+[00:10:38] the Serial Valley platform as well, and there's also
+[00:10:42] Discord support bots that you can @ in the Discord that
+[00:10:46] will have this information, too. So at any point in time, if you need more
+[00:10:49] information, you can re-watch this video. This will be recorded.
+[00:10:52] There is also more information on the event details page in the
+[00:10:56] Discord. But what are we doing here on
+[00:11:00] this event? So we've got 10 days of hacking starting
+[00:11:04] today after this kickoff is over, up through November 4th,
+[00:11:08] 9:00 PM ET is when submissions are due.
+[00:11:11] There are two main tracks. There's the indie developer track and the startups
+[00:11:15] track. When you applied, you applied to one of those tracks.
+[00:11:18] There's also two themes, either build for your world or
+[00:11:21] push the frontier.
+[00:11:24] As mentioned on the two tracks, the indie developer track is more for
+[00:11:28] those individual builders, those indie hackers, students, judged on
+[00:11:32] creativity, technical ambition, and whether it works.
+[00:11:35] And then for the startup
+[00:11:37] track, this is for the incorporated startups, so teams with
+[00:11:40] existing teams and that are coming
+[00:11:44] in with an incorporated startup as well.
+[00:11:49] Both tracks are building towards one of the two themes.
+[00:11:53] So the two themes are, one, build for your world.
+[00:11:56] So this is bringing Meta models into your own domain.
+[00:11:59] Solve a problem that you know firsthand, that you are an expert at,
+[00:12:03] but that's keeping you up at night.
+[00:12:05] Or there's a other theme, which is pushing the frontier, and this is bring
+[00:12:09] something new to the world with the Meta models.
+[00:12:12] Whether that's in software, robotics, manufacturing, energy, and
+[00:12:15] beyond Show us where you can
+[00:12:18] take these meta models to
+[00:12:21] and push the frontier.
+[00:12:24] Some rules of the road for this event, for this hackathon.
+[00:12:28] New work only, folks. So when you start this
+[00:12:32] hackathon, you must build and open source the
+[00:12:36] work that you create, and it should be distinguishable that you
+[00:12:40] built this during the hackathon. If you have existing prior
+[00:12:44] work as well, you need to call that out.
+[00:12:50] You can use that, but in the submission process, you will need to call
+[00:12:54] out that you started new work and where that new work starts.
+[00:12:58] Also, for team sizes, it's up to teams of four.
+[00:13:03] You can participate as a solo builder, you can have a team of two, you can have a
+[00:13:07] team of three, but at maximum is a team of
+[00:13:10] four, and all of your teammates must be approved.
+[00:13:14] If your teammate wasn't approved, there's a team search channel that you can
+[00:13:17] find new folks in.
+[00:13:20] As I mentioned, please make those GitHub repositories public,
+[00:13:23] because we will be evaluating all of them.
+[00:13:27] Also, as mentioned, please only demo what you build
+[00:13:31] during the event.
+[00:13:33] And also for your projects, please avoid anything that breaks
+[00:13:37] legal, ethical, or platform policies. They will be disqualified.
+[00:13:43] So at Serial Valley, we host a decent amount of hackathons, and we see some
+[00:13:47] projects that are pretty repetitive, and I love to give this overview of
+[00:13:52] just some call-outs of projects to avoid, because these are quite basic.
+[00:13:55] A lot of these are targeted towards simple chat wrappers,
+[00:13:59] simple RAG apps,
+[00:14:01] image analyzers, or medical advice generators.
+[00:14:05] Anything that goes against, again, those policies or just simple ideas.
+[00:14:09] The point of this hackathon is, again, to push the
+[00:14:13] frontier or to bring something in your world and essentially push
+[00:14:17] these meta models to the edge. And
+[00:14:21] just calling it out that some of these we've seen across many hackathons, so try
+[00:14:25] and avoid them, try and come up with something more unique.
+[00:14:30] For prizes, as I mentioned at the start, this is a million-dollar
+[00:14:33] hackathon. Across the two tracks, we've got
+[00:14:36] $950,000 in prizes, and then we've got another 50,000
+[00:14:40] in prizes for bonus prizes.
+[00:14:45] How those are split. For the indie developer track, in first place, we've
+[00:14:49] got 150K, up to fifth place, 25K,
+[00:14:53] and distributed accordingly. And then in
+[00:14:56] the startups track, the first place gets $250,000, second place
+[00:15:00] gets 150, and down to fifth place for 25K.
+[00:15:05] Each track will have first, second, third, fourth, and fifth place.
+[00:15:11] We've got five other bonus prizes.
+[00:15:14] So when you're submitting, please make sure to call out if you're submitting to
+[00:15:18] this prize track as well. But we've got a most viral project.
+[00:15:21] This is something that's posted on X after the event.
+[00:15:24] In the submission form, there will be a link to
+[00:15:29] add your post there,
+[00:15:31] and that's how we will track whether it went viral or not.
+[00:15:34] Best build on
+[00:15:36] Meta open weights,
+[00:15:38] so best project on Muse Glimmer or Muse Spark Open.
+[00:15:42] Community vote as well. After submissions, we will have a
+[00:15:46] community vote function on the project gallery,
+[00:15:50] where you should just distribute this link, your link, your
+[00:15:53] project to your friends, and they can up vote it, and that's how we'll judge the
+[00:15:57] community vote.
+[00:15:58] Then we've got the best agentic use case and the best
+[00:16:02] creative build as well, both for 5K.
+[00:16:07] For our timeline, as I mentioned, after kickoff here,
+[00:16:11] that's when hacking starts,
+[00:16:13] and then hacking is going to go up until 9:00 PM
+[00:16:17] ET on November 4th. Throughout the week, we've got a few live sessions.
+[00:16:21] We've got some workshops tomorrow and after tomorrow, so that's Tuesday and
+[00:16:25] Wednesday at
+[00:16:27] noon ET.
+[00:16:30] We also got office hours throughout the week.
+[00:16:32] On each
+[00:16:34] weekday, we will have office hours in morning ET time,
+[00:16:38] where the Meta team will be online answering any questions in the office
+[00:16:42] hours channel.
+[00:16:44] Once submissions come in on November 4th, November 5th
+[00:16:48] through 8th will be the first round of judging, where we will parse
+[00:16:52] through all of the projects. And then on November 9th
+[00:16:56] will be the closing ceremony, where we will present
+[00:17:00] the top finalists and judges will judge the projects
+[00:17:04] live.
+[00:17:07] On November 16th, that's when we'll announce the community vote winner as well in
+[00:17:11] the Discord.
+[00:17:15] We chatted about the Discord a lot.
+[00:17:16] This is going to be our home base for the next 10 days, so
+[00:17:20] please join that link. Again, that's the
+[00:17:24] URL of the event, and then just add /discord to the end, or just use that
+[00:17:28] QR code. There's a few channels in there. There's the partner channels in there.
+[00:17:32] There's a office
+[00:17:34] hours channel in there, too, where you can ask questions to the Meta team.
+[00:17:38] My team will be moderating it as well, so I'm seeing a lot of questions come in
+[00:17:42] this morning, and we will be answering all of them throughout the week.
+[00:17:48] Chatted a little bit about the live sessions, but on Tuesday, October 27th,
+[00:17:52] we're going to have a engineering workshop from Meta,
+[00:17:56] and similarly, on October 28th, part two of that workshop,
+[00:18:01] delivered by Suraj on Tuesday and Yash on Wednesday.
+[00:18:05] And then on Friday, we will have a workshop from
+[00:18:09] Fireworks by Sinan.
+[00:18:15] The partners touched on this a little bit.
+[00:18:17] But in terms of the credits being provided today, we've got $150
+[00:18:21] from Meta.
+[00:18:22] Baseten and Modal are giving $100, and then Fireworks is giving $25
+[00:18:26] in credits.
+[00:18:28] All of those forms are in the event details page
+[00:18:32] on the Super Valley platform.
+[00:18:34] So again, the event link you signed up on, you should
+[00:18:38] now see an information icon on there that you can click, and you will see all the
+[00:18:42] details on that page.
+[00:18:44] That's where you will find the credit forms that you can fill out,
+[00:18:48] and
+[00:18:50] the teams will be distributing credits in batches
+[00:18:54] accordingly. For the partner credits, those are selected
+[00:18:58] by the partners, so up to a certain amount of participants as well.
+[00:19:04] For our judging process, so after you submitted
+[00:19:08] the project, you are now on November-- It's
+[00:19:12] November 4th. It's 9:00 PM ET. You've submitted your
+[00:19:16] project. Now what? So we have judging happening
+[00:19:20] in three stages. The first stage is just going to be pass and fail,
+[00:19:23] basically detecting whether the project reasonably fits within the
+[00:19:27] theme, within the use of Meta AI products.
+[00:19:30] Then the judges from the Meta team will be
+[00:19:34] reviewing and scoring everyone that passes on
+[00:19:38] a scale of from 0 to 10, based on the judging rubric that's listed in the event
+[00:19:42] details section.
+[00:19:44] That will narrow it down to the top teams from each track,
+[00:19:49] and that
+[00:19:51] top five teams will then be presented
+[00:19:55] on the live stage on November 9th, during the
+[00:19:59] final round of judging. And the way that judging will work is judges will
+[00:20:03] tune in, watch the three-minute video that you submit,
+[00:20:07] and essentially give feedback on it.
+[00:20:09] Afterwards, they will rank them accordingly from first to fifth place.
+[00:20:15] For the judging rubric, we're focused on impact first.
+[00:20:19] Again, the real-world potential, who benefits, and
+[00:20:22] does it fit within a problem statement?
+[00:20:23] Then we've got the use of Meta AI tooling, technical depth, and demo as
+[00:20:27] well.
+[00:20:31] As a reminder,
+[00:20:33] what to submit for this hackathon.
+[00:20:36] Again, the submission link is on the platform.
+[00:20:40] So after this kickoff, you'll see a Submit Project button on the
+[00:20:44] event page where you signed up.
+[00:20:46] Make sure to review that form because that's where you will submit all the
+[00:20:50] details on your project.
+[00:20:52] One
+[00:20:54] very important thing to submit is that three-minute demo video.
+[00:20:58] It is important to focus on that three-minute demo video because
+[00:21:02] that is one of the major parts of how you will be judged.
+[00:21:06] So make sure to have a good voiceover on it.
+[00:21:08] Make sure to take some time and produce it well,
+[00:21:11] essentially describing your project, what you built, showing it in action.
+[00:21:16] Also, as part of the submission, make sure to submit that public GitHub
+[00:21:20] repository.
+[00:21:22] We've had numerous times where people have made it closed source,
+[00:21:25] and
+[00:21:26] I just want to remind you again, please make sure to open that.
+[00:21:30] That way, our team can review it as well.
+[00:21:33] Also, the deadline is November 4th at 9:00 PM ET, so please
+[00:21:37] submit it on time.
+[00:21:40] And please review the form early so you know what's coming, and do not wait
+[00:21:43] until the last hour to submit.
+[00:21:48] Folks, that's pretty much all of the information
+[00:21:52] on the rules and logistics. For any more questions,
+[00:21:56] please direct your questions into the Discord.
+[00:21:59] There, we have a forum on the questions channel.
+[00:22:02] We've got office hours for the Meta team.
+[00:22:04] We've got the team search channel if you're looking for a team.
+[00:22:07] Throughout the day, we'll be answering all the questions.
+[00:22:10] I know there's a lot in the chat, so we will be going through that today and
+[00:22:13] answering.
+[00:22:15] And then the first live session will be tomorrow at noon PM
+[00:22:19] ET, and then we'll have another one on Wednesday as well.
+[00:22:23] But other than that, that's pretty much it.
+[00:22:25] I'm very excited to see what everyone builds over the course of the
+[00:22:29] ten days.
+[00:22:31] And as a reminder, please make sure to review that submission form, and please
+[00:22:35] get started to think not only about the project idea, but then how you will
+[00:22:39] present it to the judges as well, and how you'd build it. Happy hacking, folks.
+[00:22:43] I'm excited to see what you can build with the
+[00:22:47] Meta models. Good luck.

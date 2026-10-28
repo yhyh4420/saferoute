@@ -1,0 +1,79 @@
+package com.saferoute.app.alert
+
+import android.os.SystemClock
+import android.util.Log
+import com.saferoute.app.data.Shelter
+import com.saferoute.app.data.ShelterDb
+import com.saferoute.app.location.Fix
+import com.saferoute.app.pack.RoutePack
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+
+/** Walking speeds from the FDMA tsunami evacuation guide (VALIDATION V4d). */
+const val WALK_MPS = 1.0
+const val STEP_FREE_MPS = 0.5
+private const val HEADING_LOOKAHEAD_M = 30.0
+private const val TAG = "SafeRoute"
+
+data class Guidance(
+    val shelter: Shelter,
+    val distanceM: Int,
+    val walkMinutes: Int,
+    /** Bearing from the user to a point ~30 m along the route, degrees from north. */
+    val bearingDeg: Float,
+    val routeLatLon: List<Pair<Double, Double>>,
+    val snapM: Double,
+    val computeMs: Double,
+)
+
+sealed interface AlertResult {
+    data class Ok(val guidance: Guidance) : AlertResult
+    data object FarFromRoads : AlertResult
+    data object NoStepFreeRoute : AlertResult
+}
+
+/** Offline guidance: nearest node -> follow the hazard's pre-computed tree. No network, no LLM. */
+class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
+
+    fun guide(fix: Fix, hazard: String, stepFree: Boolean): AlertResult {
+        val t0 = SystemClock.elapsedRealtimeNanos()
+        val (node, snapM) = pack.nearestNode(fix.lat, fix.lon) ?: return AlertResult.FarFromRoads
+        val profile = if (stepFree) "stepfree" else "default"
+        val route = pack.route(node, RoutePack.TreeKey(hazard, profile))
+            ?: return if (stepFree) AlertResult.NoStepFreeRoute else AlertResult.FarFromRoads
+        val shelter = db.shelter(route.shelterIdx) ?: return AlertResult.FarFromRoads
+        val points = route.nodes.map { pack.latOf(it) to pack.lonOf(it) }
+        val totalM = route.distanceM + snapM
+        val minutes = (totalM / (if (stepFree) STEP_FREE_MPS else WALK_MPS) / 60).roundToInt().coerceAtLeast(1)
+        val ms = (SystemClock.elapsedRealtimeNanos() - t0) / 1e6
+        Log.i(TAG, "alert_compute_ms=%.2f hazard=%s profile=%s nodes=%d".format(ms, hazard, profile, route.nodes.size))
+        return AlertResult.Ok(
+            Guidance(shelter, totalM.roundToInt(), minutes, bearingAlong(fix, points), points, snapM, ms)
+        )
+    }
+
+    private fun bearingAlong(fix: Fix, points: List<Pair<Double, Double>>): Float {
+        var walked = 0.0
+        var target = points.last()
+        for (i in 1 until points.size) {
+            walked += metres(points[i - 1], points[i])
+            if (walked >= HEADING_LOOKAHEAD_M) { target = points[i]; break }
+        }
+        return bearing(fix.lat to fix.lon, target)
+    }
+
+    companion object {
+        fun metres(a: Pair<Double, Double>, b: Pair<Double, Double>): Double {
+            val dy = (b.first - a.first) * 111_320.0
+            val dx = (b.second - a.second) * 111_320.0 * cos(Math.toRadians(a.first))
+            return kotlin.math.sqrt(dx * dx + dy * dy)
+        }
+
+        fun bearing(a: Pair<Double, Double>, b: Pair<Double, Double>): Float {
+            val dy = b.first - a.first
+            val dx = (b.second - a.second) * cos(Math.toRadians(a.first))
+            return ((Math.toDegrees(atan2(dx, dy)) + 360) % 360).toFloat()
+        }
+    }
+}

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">SafeRoute</string>
+    <string name="shortcut_earthquake">지진 대피</string>
+    <string name="shortcut_flood">홍수 대피</string>
+</resources>

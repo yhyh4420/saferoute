@@ -24,13 +24,15 @@ data class HazardRule(
     val source: String,
 )
 
-/** Read-only view of `pack_<city>.sqlite` (shelters + hazard rule table), copied out of assets once. */
+/** Read-only view of `pack_<city>.sqlite` (shelters + hazard rule table), copied out of assets once per install. */
 class ShelterDb(context: Context, assetName: String) {
     val db: SQLiteDatabase
 
     init {
         val file = File(context.noBackupFilesDir, assetName)
-        if (!file.exists() || file.length() != context.assets.openFd(assetName).length) {
+        // SQLite files grow in whole pages, so a rebuilt pack can keep the same size: key the copy on the install.
+        val installed = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        if (!file.exists() || file.lastModified() < installed) {
             context.assets.open(assetName).use { input -> file.outputStream().use { input.copyTo(it) } }
         }
         db = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)

@@ -4,8 +4,9 @@
 - flood: share whose route changes because underground passages are avoided
 - flood: share for which the straight-line nearest shelter is not the walking-nearest one
 
-Earthquake destinations are an OSM-park proxy until the official dataset is approved — the
-report labels this. Usage: python -m eval.seoul_divergence
+- flood: share whose shortest walk would cross a recorded flood area (침수흔적도) without the rule
+
+Usage: python -m eval.seoul_divergence
 """
 
 import json
@@ -45,6 +46,7 @@ def read_trees(path):
 def main() -> None:
     city = CITIES["seoul"]
     g = walkgraph.load(city["graph"])
+    city["edges"](g)
     shelters = city["shelters"]()
     trees = read_trees(OUT / "pack_seoul.bin")
 
@@ -61,6 +63,8 @@ def main() -> None:
     eq = trees[("earthquake", "default")][2][cell_node]
     fl = trees[("flood", "default")][2][cell_node]
     ok = (eq != NO_ROUTE) & (fl != NO_ROUTE)
+    is_osm = np.array([s.source.startswith("OpenStreetMap") for s in shelters] + [False])
+    gap = (eq != NO_ROUTE) & is_osm[np.minimum(eq, len(shelters))]
     # The two destination sets are disjoint (parks vs housing), so "different shelter" is always
     # true; what matters to a person is whether they must walk a different way.
     def first_bearing(tree_next):
@@ -85,12 +89,18 @@ def main() -> None:
     under_edge = {}
     for a, b, u in zip(g.u, g.v, g.underground):
         under_edge[(a, b)] = under_edge[(b, a)] = u
+    trace_edge = {}
+    for a, b, t in zip(g.u, g.v, g.flood_trace):
+        trace_edge[(a, b)] = trace_edge[(b, a)] = t
     passes = np.zeros(len(g.node_ids), bool)
+    crosses = np.zeros(len(g.node_ids), bool)
     for node in np.argsort(cost):
         p = pred[node]
         if p >= 0:
             passes[node] = passes[p] or under_edge[(node, p)]
+            crosses[node] = crosses[p] or trace_edge[(node, p)]
     would_go_under = passes[cell_node]
+    would_cross_trace = crosses[cell_node]
 
     # Straight-line nearest flood shelter vs walking-nearest.
     lat_s = np.array([shelters[k].lat for k in idx]); lon_s = np.array([shelters[k].lon for k in idx])
@@ -101,9 +111,11 @@ def main() -> None:
 
     report = {
         "population_worldpop_2020": round(total),
-        "earthquake_source": "OSM park proxy (official 지진옥외대피소 pending approval)",
+        "earthquake_source": "DSSP-IF-00103 행정안전부_지진옥외대피소 (official) + OSM parks only where none within 1 km",
+        "earthquake_destination_is_osm_gap_fill": {"people": round(pop[gap].sum()), "pct": round(pop[gap].sum() / total * 100, 1)},
         "eq_vs_flood_initial_direction_differs_over_90deg": {"people": round(pop[differ].sum()), "pct": round(pop[differ].sum() / total * 100, 1)},
         "flood_route_would_pass_underground_without_rule": {"people": round(pop[would_go_under].sum()), "pct": round(pop[would_go_under].sum() / total * 100, 1)},
+        "flood_route_would_cross_recorded_flood_area_without_rule": {"people": round(pop[would_cross_trace].sum()), "pct": round(pop[would_cross_trace].sum() / total * 100, 1)},
         "flood_straight_line_nearest_wrong": {"people": round(pop[mismatch].sum()), "pct": round(pop[mismatch].sum() / total * 100, 1)},
     }
     (OUT / "seoul_divergence.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))

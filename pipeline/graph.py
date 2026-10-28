@@ -25,6 +25,7 @@ class WalkGraph:
     length: np.ndarray  # metres
     underground: np.ndarray  # bool: tunnel=yes, layer<0, indoor, level<0
     steps: np.ndarray  # bool: highway=steps
+    flood_trace: np.ndarray | None = None  # bool: edge midpoint inside a recorded flood area (country data)
 
     def matrix(self, weight: np.ndarray) -> csr_matrix:
         keep = np.isfinite(weight)

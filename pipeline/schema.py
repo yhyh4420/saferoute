@@ -54,12 +54,45 @@ HAZARD_RULES: dict[str, HazardRule] = {
             hazard="flood",
             facilities=frozenset({TEMPORARY_HOUSING, DESIGNATED_REFUGE}),
             exclude_underground=True,
-            avoid_edges=frozenset({"underground"}),
+            avoid_edges=frozenset({"underground", "flood_trace"}),
             verb_ko="높은 곳으로 빨리, 지하는 피하기",
             verb_en="Move to higher ground quickly; avoid anything underground",
             forbid_ko="지하주차장 진입·침수 도로 운전 금지",
             forbid_en="Never enter underground parking or drive through flood water",
             source="행정안전부 홍수·지하공간 침수 국민행동요령",
+        ),
+        HazardRule(
+            hazard="tsunami",
+            facilities=frozenset({DESIGNATED_REFUGE}),
+            exclude_underground=False,
+            avoid_edges=frozenset(),
+            verb_ko="높은 곳으로, 해안·강에서 멀리",
+            verb_en="Go to high ground, away from the coast and rivers",
+            forbid_ko="해안·강가 접근 금지, 차량 이용 금지",
+            forbid_en="Never approach the coast or rivers; do not use cars",
+            source="内閣府 津波避難対策 / 気象庁 津波から身を守るには",
+        ),
+        HazardRule(
+            hazard="landslide",
+            facilities=frozenset({DESIGNATED_REFUGE}),
+            exclude_underground=False,
+            avoid_edges=frozenset(),
+            verb_ko="경사지·계곡에서 떨어진 곳으로",
+            verb_en="Move away from slopes and streams",
+            forbid_ko="경사지·계곡 접근 금지",
+            forbid_en="Never approach slopes or streams",
+            source="内閣府 土砂災害避難対策 / 気象庁 土砂災害から身を守るには",
+        ),
+        HazardRule(
+            hazard="fire",
+            facilities=frozenset({DESIGNATED_REFUGE}),
+            exclude_underground=False,
+            avoid_edges=frozenset(),
+            verb_ko="연기 반대편 넓은 곳으로",
+            verb_en="Go upwind to open space",
+            forbid_ko="연기 속 진입 금지, 엘리베이터 이용 금지",
+            forbid_en="Never enter smoke; do not use elevators",
+            source="内閣府 大規模火災避難対策 / 消防庁 火災から身を守るには",
         ),
     ]
 }
@@ -80,6 +113,7 @@ class Shelter:
     flag_semantics: str = FLAG_REFUGE
     updated_at: str = ""  # source modification date (ISO)
     hazards: list[str] = field(default_factory=list)
+    designated_for: frozenset[str] | None = None  # per-hazard refuge flags, set only by adapters with them
 
     def __post_init__(self) -> None:
         if not self.hazards:
@@ -90,10 +124,13 @@ def suitable(s: Shelter, hazard: str) -> bool:
     rule = HAZARD_RULES[hazard]
     if s.flag_semantics != FLAG_REFUGE or s.facility not in rule.facilities:
         return False
+    if s.designated_for is not None and hazard not in s.designated_for:
+        return False
     return not (rule.exclude_underground and s.underground)
 
 
-def write_pack(shelters: list[Shelter], path: Path) -> None:
+def write_pack(shelters: list[Shelter], path: Path, hazards: list[str] | None = None) -> None:
+    """`hazards`: rule rows to ship (those with route trees in this city); default all."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
     con = sqlite3.connect(path)
@@ -127,7 +164,7 @@ def write_pack(shelters: list[Shelter], path: Path) -> None:
             (r.hazard, r.verb_ko, r.verb_en, r.forbid_ko, r.forbid_en, r.source,
              json.dumps({"facilities": sorted(r.facilities), "exclude_underground": r.exclude_underground,
                          "avoid_edges": sorted(r.avoid_edges)}))
-            for r in HAZARD_RULES.values()
+            for r in HAZARD_RULES.values() if hazards is None or r.hazard in hazards
         ],
     )
     con.commit()

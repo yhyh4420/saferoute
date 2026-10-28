@@ -1,20 +1,19 @@
 # Submission draft (Cerebral Valley form) — update numbers before submitting
 
-> Numbers marked † are from the OSM-park earthquake proxy and must be recomputed when the official
-> 지진옥외대피소 dataset is approved (`python -m eval.seoul_divergence`).
+> Numbers recomputed 2026-10-28 with the official 지진옥외대피소 + 침수흔적도 (`python -m eval.seoul_divergence`, VALIDATION V28).
 
 ## 6. Project Description
 When a disaster alert goes off, people lose the first minutes deciding where to go — and the right answer depends on the hazard. In an earthquake you go out to open space; in a flood you go up and away from anything underground. Korean authorities tell citizens to memorise shelters and routes around home, work and school in advance because networks may fail; almost nobody does.
 
 SafeRoute does it for them. A single rule table maps each hazard to the official destination types and route penalties, and a walking-network oracle pre-computes, for every street node of the city, the way to the nearest *suitable* shelter. The phone shows an arrow, distance and the official action in milliseconds, fully offline. While online, a Muse Spark agent learns the user's regular places and prepares a personal plan for each (backup shelter, family meeting point, step-free needs), validated against the oracle. Answers to the questions people actually ask ("can I take the elevator?", "can I move my car out of the underground garage?") are pre-generated with Muse Glimmer on open weights, safety-checked, and shipped inside the app.
 
-In Seoul (9.3 M people): for 31% of residents the straight-line "nearest shelter" in a flood is not the walking-nearest one; for 40%† the first direction to walk differs by more than 90° between an earthquake and a flood; 5% would be routed through underground passages in a flood without the rule.
+In Seoul (9.3 M people): for 35% of residents the first direction to walk differs by more than 90° between an earthquake and a flood; for 32% the straight-line "nearest shelter" in a flood is not the walking-nearest one; without the rules, 5% would be routed through underground passages and 5% through areas that flooded before. Building it also surfaced a data gap: the official earthquake-shelter dataset covers only 18 of Seoul's 25 districts, so the app fills gaps with parks and labels them as not officially designated. The same code built a 5-hazard pack for Kochi, Japan, from a new adapter and rule rows alone.
 
 ## 9. Describe your use of Meta products
 - **Muse Spark (`muse-spark-1.3`) with tool calling** — the planning agent. Tools: `route_oracle` (verified walking-nearest shelter from our pre-computed trees), `get_shelters`, `get_guideline` (official guidance), `get_profile`, `save_plan`. Every id the agent saves is validated against tool outputs; in 40 evaluation runs over random Seoul locations 87.5% of plans passed validation with **zero invented shelter ids**, at about $0.02 per plan. The remaining failures were transient HTTP 400s, now retried.
 - **Muse Glimmer 30B (open weights, local via llama.cpp)** — generates and cross-checks the offline answers at build time (intent × hazard × language). Nothing is generated on the phone at alert time.
 - **Muse Voice Transcribe** — spoken questions when hands are busy (online); the transcript goes through the same offline intent matching, so the answer is still a pre-checked one.
-- **Muse Code** — used for [fill in: Japan adapter / tests].
+- **Muse Code** — wrote the Japan adapter (GSI designated refuges with 8 hazard flags), the tsunami/landslide/fire rule rows and their tests, run headless (`muse exec`); we reviewed and adjusted the result.
 
 ## 10. Why are Meta's models important to your solution?
 Safety guidance must be right, available offline, and personal — the three needs map to three Meta models:

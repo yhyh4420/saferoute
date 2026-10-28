@@ -27,6 +27,7 @@ from pipeline.schema import HAZARD_RULES, Shelter, suitable
 
 EARTH_RADIUS_M = 6_371_000
 UNDERGROUND_PENALTY = 20.0  # flood: walk underground only if there is no other way out
+FLOOD_TRACE_PENALTY = 3.0  # flood: prefer streets that did not flood before, without forbidding them
 NO_ROUTE = 0xFFFF
 MAGIC, VERSION = b"SRPK", 2
 GRID_CELL_DEG = 0.002  # ~220 m; must match RoutePack.kt
@@ -47,6 +48,8 @@ def edge_weight(g: WalkGraph, hazard: str, profile: str) -> np.ndarray:
     w = g.length.copy()
     if "underground" in HAZARD_RULES[hazard].avoid_edges:
         w[g.underground] *= UNDERGROUND_PENALTY
+    if "flood_trace" in HAZARD_RULES[hazard].avoid_edges and g.flood_trace is not None:
+        w[g.flood_trace] *= FLOOD_TRACE_PENALTY
     if profile == "stepfree":
         w[g.steps] = np.inf
     return w

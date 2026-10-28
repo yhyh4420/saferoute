@@ -32,6 +32,8 @@ import com.saferoute.app.alert.AlertScreen
 import com.saferoute.app.location.DEMO_PLACES
 import com.saferoute.app.location.Fix
 import com.saferoute.app.location.headingUpdates
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,9 +51,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Demo/emulator hooks: adb shell am start -n com.saferoute.app/.MainActivity --es hazard flood --ei place 1
+        // Demo/emulator hooks: adb shell am start -n com.saferoute.app/.MainActivity --es hazard flood --ei place 1 --ei hour 23
         val startHazard = intent.getStringExtra("hazard") ?: "earthquake"
         val startPlace = intent.getIntExtra("place", -1).takeIf { it in DEMO_PLACES.indices }?.let { DEMO_PLACES[it] }
+        val demoHour = intent.getIntExtra("hour", -1).takeIf { it in 0..23 }
+        fun now() = demoHour?.let { LocalDate.now().atTime(it, 0) } ?: LocalDateTime.now()
         LearnWorker.schedule(this)
 
         setContent {
@@ -113,7 +117,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) { headingUpdates(this@MainActivity).collect { heading = it } }
                 LaunchedEffect(fix, hazard, stepFree) {
                     val f = fix ?: return@LaunchedEffect
-                    result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree) }
+                    result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree, now()) }
                 }
 
                 AlertScreen(

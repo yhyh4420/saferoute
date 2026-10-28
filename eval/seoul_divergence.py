@@ -109,6 +109,11 @@ def main() -> None:
     walk_idx = fl.astype(int)
     mismatch = (fl != NO_ROUTE) & (straight_idx != walk_idx)
 
+    # Night/weekend: school-yard destinations may be locked (VALIDATION V14) -> extra walk to the unlocked tree.
+    may_lock = np.array([s.may_lock for s in shelters] + [False])
+    to_school = (eq != NO_ROUTE) & may_lock[np.minimum(eq, len(shelters))]
+    extra = trees[("earthquake", "unlocked")][1][cell_node].astype(float) - trees[("earthquake", "default")][1][cell_node]
+
     report = {
         "population_worldpop_2020": round(total),
         "earthquake_source": "DSSP-IF-00103 행정안전부_지진옥외대피소 (official) + OSM parks only where none within 1 km",
@@ -116,6 +121,8 @@ def main() -> None:
         "eq_vs_flood_initial_direction_differs_over_90deg": {"people": round(pop[differ].sum()), "pct": round(pop[differ].sum() / total * 100, 1)},
         "flood_route_would_pass_underground_without_rule": {"people": round(pop[would_go_under].sum()), "pct": round(pop[would_go_under].sum() / total * 100, 1)},
         "flood_route_would_cross_recorded_flood_area_without_rule": {"people": round(pop[would_cross_trace].sum()), "pct": round(pop[would_cross_trace].sum() / total * 100, 1)},
+        "earthquake_destination_is_school_yard": {"people": round(pop[to_school].sum()), "pct": round(pop[to_school].sum() / total * 100, 1),
+                                                  "median_extra_m_if_locked": int(np.median(extra[to_school]))},
         "flood_straight_line_nearest_wrong": {"people": round(pop[mismatch].sum()), "pct": round(pop[mismatch].sum() / total * 100, 1)},
     }
     (OUT / "seoul_divergence.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))

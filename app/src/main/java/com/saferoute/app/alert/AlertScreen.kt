@@ -248,11 +248,26 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, fix: Fi
             modifier = Modifier.testTag("distance"))
         Text(g.shelter.name, fontSize = 22.sp, modifier = Modifier.testTag("shelter_name"))
         Text(g.shelter.source, fontSize = 12.sp, color = Color.Gray)
+        g.lockWarning?.let { LockWarningCard(it) }
         Spacer(Modifier.height(12.dp))
         RouteMap(g, accent, fix)
         Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함".format(g.computeMs), fontSize = 12.sp, color = Color.Gray,
             modifier = Modifier.testTag("compute_ms"))
         if (stepFree) Text("계단 없는 경로 기준", fontSize = 12.sp, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun LockWarningCard(w: LockWarning) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 10.dp).background(Color(0xFFFFF3CD)).padding(12.dp).testTag("lock_warning"),
+    ) {
+        Text("⚠ 학교 운동장은 밤·주말에 문이 잠겨 있을 수 있어요", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text("School gates may be locked at night and on weekends.", fontSize = 12.sp, color = Color.DarkGray)
+        val alt = w.alternative
+        if (alt == null) Text("주변에 학교가 아닌 대피 장소가 없어요. 잠겨 있으면 주변 넓은 공터로 가세요.", fontSize = 14.sp)
+        else Text("잠겨 있으면 → ${alt.shelter.name} · ${alt.distanceM} m · 도보 약 ${alt.walkMinutes}분",
+            fontSize = 15.sp, modifier = Modifier.testTag("lock_alternative"))
     }
 }
 

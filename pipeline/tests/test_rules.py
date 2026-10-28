@@ -57,3 +57,21 @@ def test_seoul_eq_outdoor_converts_web_mercator_and_filters_region():
     assert abs(shelters[0].lat - 37.5731) < 0.001 and abs(shelters[0].lon - 126.9618) < 0.001
     assert report["other_region"] == 1 and report["duplicate_id"] == 1
     assert suitable(shelters[0], "earthquake") and not suitable(shelters[0], "flood")
+
+
+def test_school_yards_may_lock_and_unlocked_tree_avoids_them():
+    import numpy as np
+    from pipeline import oracle
+    from pipeline.graph import WalkGraph
+
+    rows = [{"THINGS_MNG_NO": n, "THINGS_NM": name, "CTPV_NM": "서울특별시", "STDG_SGG_CD": "11110",
+             "XMAP_CRTS": x, "YMAP_CRTS": 4519291.0, "UDGD_YN": "0"}
+            for n, name, x in (("S", "청운초등학교 운동장", 14133300.0), ("P", "사직공원", 14133700.0))]
+    shelters, report = kr.seoul_eq_outdoor(rows)
+    assert [s.may_lock for s in shelters] == [True, False] and report["may_lock"] == 1
+    lon = np.array([s.lon for s in shelters] + [shelters[0].lon + 0.0005])
+    lat = np.full(3, shelters[0].lat)
+    g = WalkGraph(np.arange(3), lat, lon, np.array([0, 2]), np.array([2, 1]), np.array([40.0, 300.0]),
+                  np.zeros(2, bool), np.zeros(2, bool))
+    assert oracle.build_tree(g, shelters, "earthquake", "default").shelter[2] == 0
+    assert oracle.build_tree(g, shelters, "earthquake", oracle.UNLOCKED).shelter[2] == 1

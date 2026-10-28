@@ -12,7 +12,7 @@ Built during the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), In
 ## How it works
 1. **One rule table for all hazards** (`pipeline/schema.py`): hazard → allowed destination types, path penalties, action verbs, official source. Adding a hazard is adding a row; the LLM never decides where people go.
 2. **Walking-network oracle** (`pipeline/oracle.py`): for every walking node of the city, a multi-source shortest-path tree per hazard and profile (default / step-free). Seoul: 166,759 nodes, 4 trees, built in ~8 s, 7.5 MB pack. Kochi (Japan): 5 hazards, 10 trees, 2 s — same code, new adapter + rule rows.
-3. **Offline alert screen** (Android, Kotlin/Compose): nearest node → follow the tree → arrow, distance, minutes, action verbs. Pack memory-mapped; guidance in **< 5 ms**, < 100 ms on first open. Works in airplane mode.
+3. **Offline alert screen** (Android, Kotlin/Compose): nearest node → follow the tree → arrow, distance, minutes, action verbs. Pack memory-mapped; guidance in **< 5 ms**, < 100 ms on first open. Works in airplane mode. At night and at weekends, a school-yard destination comes with a warning and the nearest non-school alternative (a separate `unlocked` tree).
 4. **Planning agent while online** (Muse Spark tool calling): for each regular place, the agent calls `route_oracle`, `get_profile`, `get_shelters`, `get_guideline` and `save_plan`; every id it saves is validated against what the tools returned. Plans are cached and shown offline at alert time.
 5. **Offline Q&A without a phone-side model**: answers to common questions ("can I take the elevator?", "can I go to the underground garage?") are pre-generated with **Muse Glimmer (open weights) on a laptop**, automatically safety-checked, and shipped in the pack; the phone only matches the question.
 
@@ -32,6 +32,7 @@ Why not a small on-device model? Llama 3.2 1B (ExecuTorch) scored 8/23 on our sa
 | Seoul residents for whom the straight-line nearest flood shelter is not the walking-nearest | 31.8% (2.97 M) |
 | Seoul residents whose shortest flood route would pass underground without the rule | 5.3% (0.50 M) |
 | … would cross a recorded flood area (침수흔적도) without the rule | 5.3% (0.49 M) |
+| Seoul residents whose nearest earthquake destination is a school yard (gates may be locked at night/weekends) | 44.6% (4.17 M); +606 m median walk to the nearest non-school site |
 | Seoul residents whose nearest earthquake destination is a gap-fill park (official data covers 18 of 25 districts) | 36.3% (3.39 M) |
 | Agent plans passing validation (40 runs) | 87.5%, 0 invented shelter ids, ~$0.02 per plan |
 | Offline answers, safety golden set | Glimmer 23/23 vs on-device 1B 8/23 |
@@ -65,4 +66,5 @@ adb shell cmd connectivity airplane-mode enable && ./gradlew connectedDebugAndro
 - Recorded flood areas (침수흔적도) are penalised (×3), not forbidden: a past flood does not mean this one.
 - Third-party apps cannot read Korean Cell Broadcast alerts; alerts are triggered from the app, a widget or a simulation.
 - "Step-free" removes stairs only; OSM has almost no wheelchair/incline data in Seoul, so it is not a wheelchair route.
+- The school-gate warning uses fixed hours (18–06) and weekends; public holidays are not included.
 - Walking speeds are planning values (1.0 m/s, 0.5 m/s step-free), not measured per person.

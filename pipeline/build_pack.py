@@ -68,7 +68,9 @@ def main() -> None:
     shelters = city["shelters"]()
     edges = city["edges"](g) if "edges" in city else {}
     hazards = [h for h in HAZARD_RULES if any(suitable(s, h) for s in shelters)]
-    trees = [oracle.build_tree(g, shelters, h, p) for h in hazards for p in oracle.PROFILES]
+    profiles = {h: oracle.PROFILES + ((oracle.UNLOCKED,) if any(suitable(s, h) and s.may_lock for s in shelters) else ())
+                for h in hazards}
+    trees = [oracle.build_tree(g, shelters, h, p) for h in hazards for p in profiles[h]]
 
     OUT.mkdir(exist_ok=True)
     bin_path, db_path = OUT / f"pack_{args.city}.bin", OUT / f"pack_{args.city}.sqlite"

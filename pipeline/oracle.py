@@ -33,6 +33,7 @@ MAGIC, VERSION = b"SRPK", 2
 GRID_CELL_DEG = 0.002  # ~220 m; must match RoutePack.kt
 GRID_KEY = 1_000_000
 PROFILES = ("default", "stepfree")
+UNLOCKED = "unlocked"  # default walking, but never towards a may_lock destination (night/holiday fallback)
 
 
 @dataclass
@@ -62,7 +63,7 @@ def snap(g: WalkGraph, lat: np.ndarray, lon: np.ndarray) -> tuple[np.ndarray, np
 
 
 def build_tree(g: WalkGraph, shelters: list[Shelter], hazard: str, profile: str) -> Tree:
-    idx = [k for k, s in enumerate(shelters) if suitable(s, hazard)]
+    idx = [k for k, s in enumerate(shelters) if suitable(s, hazard) and not (profile == UNLOCKED and s.may_lock)]
     nodes, _ = snap(g, np.array([shelters[k].lat for k in idx]), np.array([shelters[k].lon for k in idx]))
     node_shelter: dict[int, int] = {}
     for k, n in zip(idx, nodes):
@@ -122,7 +123,8 @@ def check(trees: list[Tree], shelters: list[Shelter]) -> dict:
     out = {}
     for t in trees:
         reach = t.next >= 0
-        bad = {int(s) for s in np.unique(t.shelter[reach]) if not suitable(shelters[int(s)], t.hazard)}
+        bad = {int(s) for s in np.unique(t.shelter[reach]) if not suitable(shelters[int(s)], t.hazard)
+               or (t.profile == UNLOCKED and shelters[int(s)].may_lock)}
         out[f"{t.hazard}/{t.profile}"] = {
             "coverage_pct": round(float(reach.mean() * 100), 2),
             "rule_violations": len(bad),

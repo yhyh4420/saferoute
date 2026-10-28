@@ -102,9 +102,11 @@ def seoul_eq_outdoor(rows: list[dict] | None = None) -> tuple[list[Shelter], dic
                 source="재난안전데이터 공유플랫폼 DSSP-IF-00103 행정안전부_지진옥외대피소",
                 address=" ".join(str(r.get(k) or "").strip() for k in ("SGG_NM", "ROAD_NM", "ADDR_MNO")),
                 underground=underground,
+                may_lock=bool(SCHOOL_YARD.search(r["THINGS_NM"])),
             )
         )
     report["shelters"] = len(shelters)
+    report["may_lock"] = sum(s.may_lock for s in shelters)
     return shelters, report
 
 
@@ -164,6 +166,7 @@ def seoul_temp_housing(rows: list[dict] | None = None) -> tuple[list[Shelter], d
     return shelters, report
 
 
+SCHOOL_YARD = re.compile(r"학교|운동장")
 GAP_FILL_M = 1000  # official 지진옥외대피소 covers 18 of 25 Seoul districts (VALIDATION V28)
 
 

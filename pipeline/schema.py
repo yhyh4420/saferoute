@@ -113,7 +113,8 @@ class Shelter:
     flag_semantics: str = FLAG_REFUGE
     updated_at: str = ""  # source modification date (ISO)
     hazards: list[str] = field(default_factory=list)
-    designated_for: frozenset[str] | None = None  # per-hazard refuge flags, set only by adapters with them
+    designated_for: frozenset[str] | None = None
+    may_lock: bool = False  # school yard: gates may be locked at night and on holidays (VALIDATION V14)  # per-hazard refuge flags, set only by adapters with them
 
     def __post_init__(self) -> None:
         if not self.hazards:
@@ -138,7 +139,7 @@ def write_pack(shelters: list[Shelter], path: Path, hazards: list[str] | None = 
         """CREATE TABLE shelter (
             idx INTEGER PRIMARY KEY, id TEXT UNIQUE, country TEXT, name TEXT, lat REAL, lon REAL,
             facility TEXT, hazards TEXT, address TEXT, capacity INTEGER, underground INTEGER,
-            source TEXT, updated_at TEXT)"""
+            source TEXT, updated_at TEXT, may_lock INTEGER)"""
     )
     con.execute(
         """CREATE TABLE hazard_rule (
@@ -151,11 +152,12 @@ def write_pack(shelters: list[Shelter], path: Path, hazards: list[str] | None = 
         d["idx"] = i
         d["hazards"] = ",".join(s.hazards)
         d["underground"] = int(s.underground)
+        d["may_lock"] = int(s.may_lock)
         rows.append(d)
     con.executemany(
         """INSERT INTO shelter VALUES
            (:idx, :id, :country, :name, :lat, :lon, :facility, :hazards, :address,
-            :capacity, :underground, :source, :updated_at)""",
+            :capacity, :underground, :source, :updated_at, :may_lock)""",
         rows,
     )
     con.executemany(

@@ -13,6 +13,8 @@ data class Shelter(
     val facility: String,
     val address: String,
     val source: String,
+    /** School yard whose gates may be locked at night and on holidays (VALIDATION V14). */
+    val mayLock: Boolean = false,
 )
 
 data class HazardRule(
@@ -39,22 +41,22 @@ class ShelterDb(context: Context, assetName: String) {
     }
 
     fun shelter(idx: Int): Shelter? = db.rawQuery(
-        "SELECT idx, id, name, lat, lon, facility, address, source FROM shelter WHERE idx = ?",
+        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock FROM shelter WHERE idx = ?",
         arrayOf(idx.toString()),
     ).use { c ->
         if (!c.moveToFirst()) null
         else Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3), c.getDouble(4),
-            c.getString(5), c.getString(6) ?: "", c.getString(7))
+            c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1)
     }
 
     /** Shelters suitable for [hazard] according to the pack's rule table (destination candidates). */
     fun suitableFor(hazard: String): List<Shelter> = db.rawQuery(
-        "SELECT idx, id, name, lat, lon, facility, address, source FROM shelter WHERE ',' || hazards || ',' LIKE ?",
+        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock FROM shelter WHERE ',' || hazards || ',' LIKE ?",
         arrayOf("%,$hazard,%"),
     ).use { c ->
         buildList {
             while (c.moveToNext()) add(Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3),
-                c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7)))
+                c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1))
         }
     }
 

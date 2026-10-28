@@ -4,6 +4,7 @@ import com.saferoute.app.alert.AlertEngine
 import com.saferoute.app.alert.AlertResult
 import com.saferoute.app.data.ShelterDb
 import com.saferoute.app.location.Fix
+import java.time.LocalDateTime
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -49,13 +50,22 @@ class PlanAgent(
             "route_oracle" -> {
                 val stepFree = if (args.has("step_free")) args.getBoolean("step_free") else profile.stepFree
                 val h = args.getString("hazard")
-                when (val r = engine.guide(Fix(args.getDouble("lat"), args.getDouble("lon"), "agent"), h, stepFree)) {
+                // Ask at night so a school-yard destination also returns its locked-gate fallback.
+                when (val r = engine.guide(Fix(args.getDouble("lat"), args.getDouble("lon"), "agent"), h, stepFree, NIGHT)) {
                     is AlertResult.Ok -> {
                         val s = r.guidance.shelter
                         seen += s.id
                         if (h == hazard) oracleId = s.id
                         JSONObject().put("shelter_id", s.id).put("name", s.name)
                             .put("walk_m", r.guidance.distanceM).put("walk_min", r.guidance.walkMinutes)
+                            .put("may_be_locked_at_night", s.mayLock)
+                            .apply {
+                                r.guidance.lockWarning?.alternative?.let { a ->
+                                    seen += a.shelter.id
+                                    put("night_alternative", JSONObject().put("shelter_id", a.shelter.id)
+                                        .put("name", a.shelter.name).put("walk_m", a.distanceM).put("walk_min", a.walkMinutes))
+                                }
+                            }
                     }
                     else -> JSONObject().put("error", "no route from here")
                 }
@@ -137,9 +147,11 @@ class PlanAgent(
     }
 
     private companion object {
+        val NIGHT: LocalDateTime = LocalDateTime.of(2026, 11, 4, 23, 0)
         const val MAX_TURNS = 6
         const val SYSTEM = "You prepare personal evacuation plans ahead of time for one of the user's regular places. " +
             "Call route_oracle first: its shelter is the verified walking-nearest suitable destination. " +
+            "If the primary may be locked at night, use its night_alternative as the backup. " +
             "Use get_shelters only to pick a backup and a family meeting point. Never name a place, id or " +
             "distance that a tool did not return. Follow get_guideline for the hazard. When done, call " +
             "save_plan exactly once. Notes must be short, in Korean, action-first."

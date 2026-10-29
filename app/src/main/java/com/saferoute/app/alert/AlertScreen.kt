@@ -1,5 +1,10 @@
 package com.saferoute.app.alert
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ButtonDefaults
@@ -59,6 +64,8 @@ import com.saferoute.app.location.Fix
 import kotlin.math.cos
 
 private val HAZARD_COLORS = mapOf("earthquake" to Color(0xFFB3261E), "flood" to Color(0xFF0B57D0))
+private val ME_COLOR = Color(0xFF212121)
+private val ALT_COLOR = Color(0xFFE0A100)
 private val HAZARD_LABELS = mapOf("earthquake" to "지진", "flood" to "홍수")
 
 @Composable
@@ -85,6 +92,11 @@ fun AlertScreen(
     onSimulateWeek: () -> Unit,
     onLearnNow: () -> Unit,
     onCall119: () -> Unit,
+    /** Learned regular places: a one-tap start point while GPS is still searching. */
+    knownPlaces: List<Fix> = emptyList(),
+    /** Location is off system-wide (or not permitted): searching would never end. */
+    locationOff: Boolean = false,
+    onTurnOnLocation: () -> Unit = {},
 ) {
     val rule = rules.firstOrNull { it.hazard == hazard }
     val accent = HAZARD_COLORS[hazard] ?: Color.DarkGray
@@ -120,7 +132,8 @@ fun AlertScreen(
                 prepared?.let { PreparedPlanCard(it, accent) }
                 RouteMap(result.guidance, accent, fix)
                 QaSection(qa, onAsk, onMic, accent)
-                Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함 · 출처: %s".format(result.guidance.computeMs, rule?.source ?: ""),
+                Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함 · 대피소: %s · 행동요령: %s".format(
+                    result.guidance.computeMs, result.guidance.shelter.source, rule?.source ?: ""),
                     fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp).testTag("compute_ms"))
             }
             else -> {
@@ -128,8 +141,26 @@ fun AlertScreen(
                     AlertResult.OutsideArea -> "여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요.\nYou are outside this app's offline map (Seoul). Follow official alerts."
                     AlertResult.FarFromRoads -> "주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요.\nNo walkable road data nearby."
                     AlertResult.NoStepFreeRoute -> "계단 없이 갈 수 있는 경로가 없어요. 아래 '준비·설정'에서 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요.\nNo step-free route from here."
-                    else -> if (fix == null) "위치를 찾는 중… (아래 '준비·설정'에서 데모 위치를 고를 수 있어요)" else "계산 중…"
+                    else -> when {
+                        fix != null -> "계산 중…"
+                        locationOff -> "위치가 꺼져 있어서 현재 위치를 알 수 없어요."
+                        else -> "위치를 찾는 중…"
+                    }
                 })
+                if (fix == null && locationOff) {
+                    Button(onClick = onTurnOnLocation, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(52.dp)) {
+                        Text("위치 켜기", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (fix == null && knownPlaces.isNotEmpty()) {
+                    Text("GPS를 기다리지 않고 바로 안내받기 — 지금 여기예요:", fontSize = 15.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp))
+                    FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        knownPlaces.forEach { p ->
+                            Button(onClick = { onPlace(p) }, modifier = Modifier.height(52.dp)) { Text(p.label, fontSize = 17.sp) }
+                        }
+                    }
+                }
                 ActionRow(accent, onCall119)
             }
         }
@@ -294,7 +325,8 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
             // With a compass the arrow is relative to where the phone points; without one it is north-up.
             val arrowDeg = g.bearingDeg - (headingDeg ?: 0f)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(Modifier.size(112.dp).testTag("arrow")) {
+                val spoken = "목적지 방향: ${clockWords(arrowDeg)}, ${g.distanceM} m"
+                Canvas(Modifier.size(112.dp).testTag("arrow").semantics { contentDescription = spoken }) {
                     rotate(arrowDeg) {
                         val w = size.width
                         val path = Path().apply {
@@ -316,9 +348,27 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
                     modifier = Modifier.testTag("shelter_name"))
             }
         }
-        Text(g.shelter.source, fontSize = 11.sp, color = Color.Gray)
+        // Full dataset names are in the footer; here only whether the site is officially designated.
+        val official = !g.shelter.source.startsWith("OpenStreetMap")
+        Text(if (official) "✓ 공식 지정 대피소" else "공식 지정 아님 · 공식 데이터가 없는 지역의 공원",
+            fontSize = 13.sp, color = if (official) Color(0xFF2E7D32) else Color(0xFF8A5A00))
         if (stepFree) Text("계단 없는 경로 기준", fontSize = 12.sp, color = Color.Gray)
         g.lockWarning?.let { LockWarningCard(it) }
+    }
+}
+
+/** Relative direction in words for screen readers (the arrow itself is only visual). */
+private fun clockWords(deg: Float): String {
+    val d = ((deg % 360) + 360) % 360
+    return when {
+        d < 22.5 || d >= 337.5 -> "앞쪽"
+        d < 67.5 -> "오른쪽 앞"
+        d < 112.5 -> "오른쪽"
+        d < 157.5 -> "오른쪽 뒤"
+        d < 202.5 -> "뒤쪽"
+        d < 247.5 -> "왼쪽 뒤"
+        d < 292.5 -> "왼쪽"
+        else -> "왼쪽 앞"
     }
 }
 
@@ -358,18 +408,25 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
                 if (s.idx != g.shelter.idx && s.idx != alt?.idx)
                     drawCircle(accent.copy(alpha = 0.45f), radius = 9f, center = p(s.lat to s.lon), style = Stroke(width = 4f))
             }
-            alt?.let { drawCircle(Color(0xFFE0A100), radius = 16f, center = p(it.lat to it.lon)) }
+            alt?.let { drawCircle(ALT_COLOR, radius = 16f, center = p(it.lat to it.lon)) }
             val path = Path().apply { pts.forEachIndexed { i, ll -> val o = p(ll); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
             drawPath(path, accent, style = Stroke(width = 9f))
             // The route ends at the street node nearest the shelter; show the last few metres too.
             drawLine(accent, p(pts.last()), p(g.shelter.lat to g.shelter.lon), strokeWidth = 5f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f)))
             drawCircle(Color.White, radius = 17f, center = p(pts.first()))
-            drawCircle(Color(0xFF1565C0), radius = 12f, center = p(pts.first()))
+            drawCircle(ME_COLOR, radius = 12f, center = p(pts.first()))
             drawCircle(accent, radius = 20f, center = p(g.shelter.lat to g.shelter.lon))
         }
-        Text("오프라인 지도 · 북쪽 위   🔵 나  🔴 목적지  ○ 대피소" + if (alt != null) "  🟡 대안" else "",
-            fontSize = 11.sp, color = Color.DarkGray,
+        // Legend dots use the exact colours drawn on the map (the destination takes the hazard colour).
+        val legend = buildAnnotatedString {
+            append("오프라인 지도 · 북쪽 위  ")
+            fun dot(c: Color, label: String) { withStyle(SpanStyle(color = c)) { append("●") }; append(" $label  ") }
+            dot(ME_COLOR, "나"); dot(accent, "목적지")
+            withStyle(SpanStyle(color = accent.copy(alpha = 0.6f))) { append("○") }; append(" 대피소  ")
+            if (alt != null) dot(ALT_COLOR, "잠김 시 대안")
+        }
+        Text(legend, fontSize = 11.sp, color = Color.DarkGray,
             modifier = Modifier.align(Alignment.TopStart).background(Color(0xCCFFFFFF)).padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }

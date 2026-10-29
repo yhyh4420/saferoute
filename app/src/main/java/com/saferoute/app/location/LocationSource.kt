@@ -32,6 +32,10 @@ val DEMO_PLACES = listOf(
 class LocationSource(context: Context) {
     private val lm = context.getSystemService(LocationManager::class.java)
 
+    /** False when the user turned location off system-wide: then no fix will ever arrive. */
+    fun enabled(): Boolean = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        .any { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+
     @SuppressLint("MissingPermission")
     fun lastKnown(): Fix? = PROVIDERS
         .mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }
@@ -42,7 +46,8 @@ class LocationSource(context: Context) {
     fun updates(): Flow<Fix> = callbackFlow {
         val listener = LocationListener { trySend(it.toFix("GPS")) }
         PROVIDERS.filter { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }.forEach {
-            lm.requestLocationUpdates(it, 2_000L, 5f, listener, Looper.getMainLooper())
+            // A revoked permission must not crash the alert screen; the caller re-subscribes on grant.
+            runCatching { lm.requestLocationUpdates(it, 2_000L, 5f, listener, Looper.getMainLooper()) }
         }
         awaitClose { lm.removeUpdates(listener) }
     }

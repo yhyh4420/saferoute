@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -52,6 +53,15 @@ class MainActivity : ComponentActivity() {
     private val learner get() = g.learner
     private val voice by lazy { VoiceQuestion(BuildConfig.META_API_KEY) }
 
+    /** Intents that arrive while the screen is already open (e.g. the flood shortcut over the quake screen). */
+    private val newIntent = mutableStateOf<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        newIntent.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Demo/emulator hooks: adb shell am start -n com.saferoute.app/.MainActivity --es hazard flood --ei place 1 --ei hour 23
@@ -73,6 +83,11 @@ class MainActivity : ComponentActivity() {
                 }
                 var fix by remember { mutableStateOf(startPlace) }
                 var pinned by remember { mutableStateOf(startPlace != null) }
+                LaunchedEffect(newIntent.value) {
+                    val i = newIntent.value ?: return@LaunchedEffect
+                    i.getStringExtra("hazard")?.let { hazard = it }
+                    i.getIntExtra("place", -1).takeIf { it in DEMO_PLACES.indices }?.let { fix = DEMO_PLACES[it]; pinned = true }
+                }
                 var result by remember { mutableStateOf<AlertResult?>(null) }
                 var heading by remember { mutableStateOf<Float?>(null) }
                 val rules = remember { db.rules() }
@@ -112,15 +127,34 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+                fun hasLocation() = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                    .any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+                var locationGranted by remember { mutableStateOf(hasLocation()) }
+                // Re-subscribe once the user answers: a subscription started before the grant never delivers.
+                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                    locationGranted = hasLocation()
+                }
                 val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                     if (!granted) qaUi = qaUi.copy(voiceStatus = "마이크 권한이 없어요. 버튼이나 입력으로 물어보세요.")
                 }
                 LaunchedEffect(Unit) {
-                    permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    if (!locationGranted) {
+                        permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
                 }
-                LaunchedEffect(pinned) {
-                    if (pinned) return@LaunchedEffect
+                // Poll while there is no fix: the user may switch location on in settings and come back.
+                var locationOff by remember { mutableStateOf(false) }
+                LaunchedEffect(fix == null) {
+                    while (fix == null) {
+                        locationOff = !locationGranted || !location.enabled()
+                        if (!locationOff && !locationGranted) locationGranted = hasLocation()
+                        kotlinx.coroutines.delay(2_000)
+                        locationGranted = hasLocation()
+                    }
+                    locationOff = false
+                }
+                LaunchedEffect(pinned, locationGranted, locationOff) {
+                    if (pinned || !locationGranted || locationOff) return@LaunchedEffect
                     location.lastKnown()?.let { fix = it }
                     location.updates().collect {
                         if (!pinned) fix = it
@@ -152,6 +186,12 @@ class MainActivity : ComponentActivity() {
                     onAsk = { askOffline(it) },
                     onWithChild = { withChild = it; prefs.edit().putBoolean("withchild", it).apply() },
                     onCall119 = { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))) },
+                    locationOff = locationOff,
+                    onTurnOnLocation = {
+                        if (!locationGranted) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                        else startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                    },
+                    knownPlaces = remember(learnUi) { learner.places().map { Fix(it.lat, it.lon, it.label) } },
                     onMic = {
                         when {
                             voice.isRecording -> voice.stop()

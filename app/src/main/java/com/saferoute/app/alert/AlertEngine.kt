@@ -51,6 +51,8 @@ class MapData(
 sealed interface AlertResult {
     data class Ok(val guidance: Guidance) : AlertResult
     data object FarFromRoads : AlertResult
+    /** The fix is outside the city this pack covers: road advice would be wrong. */
+    data object OutsideArea : AlertResult
     data object NoStepFreeRoute : AlertResult
 }
 
@@ -59,6 +61,7 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
 
     fun guide(fix: Fix, hazard: String, stepFree: Boolean, now: LocalDateTime = LocalDateTime.now()): AlertResult {
         val t0 = SystemClock.elapsedRealtimeNanos()
+        if (!pack.covers(fix.lat, fix.lon)) return AlertResult.OutsideArea
         val (node, snapM) = pack.nearestNode(fix.lat, fix.lon) ?: return AlertResult.FarFromRoads
         val profile = if (stepFree) "stepfree" else "default"
         val route = pack.route(node, RoutePack.TreeKey(hazard, profile))

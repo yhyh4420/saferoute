@@ -88,13 +88,17 @@ class MainActivity : ComponentActivity() {
                 fun askOffline(q: String) {
                     val shelterName = (result as? AlertResult.Ok)?.guidance?.shelter?.name
                     val hit = qa.answer(q, hazard)
-                    qaUi = qaUi.copy(asked = q, answer = hit?.let { OfflineQa.fill(it.answer, shelterName) }
-                        ?: rules.first { it.hazard == hazard }.let { "${it.verbKo}. ${it.forbidKo}." })
+                    val korean = OfflineQa.isKorean(q)
+                    qaUi = qaUi.copy(asked = q, answer = hit?.let { OfflineQa.fill(it.answer, shelterName, korean) }
+                        ?: rules.first { it.hazard == hazard }.let {
+                            if (korean) "${it.verbKo}. ${it.forbidKo}." else "${it.verbEn}. ${it.forbidEn}."
+                        })
                 }
                 val scope = rememberCoroutineScope()
                 val prepared = remember(fix, hazard, planVersion) {
                     fix?.let { f -> plans.lookup(f.lat, f.lon, hazard) }?.let { p ->
-                        PreparedPlanUi(p.placeLabel, p.notesKo, p.backupId?.let { db.byId(it)?.name },
+                        // Plans made from a raw GPS fix carry the fix label; show where it applies instead.
+                        PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치")) "이 근처" else p.placeLabel, p.notesKo, p.backupId?.let { db.byId(it)?.name },
                             p.meetingPointId?.let { db.byId(it)?.name })
                     }
                 }
@@ -112,6 +116,7 @@ class MainActivity : ComponentActivity() {
                     location.updates().collect {
                         if (!pinned) fix = it
                         learner.record(Visit(it.lat, it.lon, System.currentTimeMillis()))
+                        refreshLearn()
                     }
                 }
                 LaunchedEffect(Unit) { headingUpdates(this@MainActivity).collect { heading = it } }
@@ -140,7 +145,7 @@ class MainActivity : ComponentActivity() {
                     onMic = {
                         when {
                             voice.isRecording -> voice.stop()
-                            !online() -> qaUi = qaUi.copy(voiceStatus = "음성 질문은 온라인에서만 돼요. 아래 질문 버튼을 눌러 주세요.")
+                            !online() -> qaUi = qaUi.copy(voiceStatus = "음성 질문은 온라인에서만 돼요. 위의 질문 버튼을 눌러 주세요.")
                             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
                                 micPermission.launch(Manifest.permission.RECORD_AUDIO)
                             else -> scope.launch {

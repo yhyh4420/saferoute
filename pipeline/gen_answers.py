@@ -25,6 +25,8 @@ URL = "http://127.0.0.1:8091/v1/chat/completions"
 ATTEMPTS = 3
 # Distances/times must come from the route oracle at alert time, never from a pre-written answer.
 INVENTED_NUMBER = re.compile(r"\d+\s*(m|km|분|미터|min|minutes|meters)\b")
+# Korean answers must be polite (~세요/~니다/~요): a sentence ending in 다 not preceded by 니 is plain style.
+PLAIN_KO = re.compile(r"(?<!니)다[.!]?(\s|$)")
 
 SYSTEM = {
     "ko": "너는 재난 대피 안내 문구를 쓴다. 반드시 한국어 존댓말(~하세요)로, 아래 근거만 사용한다. 대피 장소 이름은 쓰지 말고 "
@@ -55,6 +57,8 @@ def check(answer: str, must_any: tuple, must_not: tuple) -> list[str]:
             problems.append(f"forbidden: {m}")
     if INVENTED_NUMBER.search(answer):
         problems.append("contains a distance/time number")
+    if re.search(r"[가-힣]", answer) and PLAIN_KO.search(answer):
+        problems.append("not polite Korean (~다)")
     if len(answer) > 220:
         problems.append("too long")
     return problems

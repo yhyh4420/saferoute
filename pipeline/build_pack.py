@@ -46,7 +46,7 @@ def write_qa(db_path: Path) -> dict:
     con.execute("CREATE TABLE qa (hazard TEXT, intent TEXT, lang TEXT, question TEXT, answer TEXT, keywords TEXT, "
                 "PRIMARY KEY (hazard, intent, lang))")
     con.executemany("INSERT INTO qa VALUES (?, ?, ?, ?, ?, ?)", [
-        (a["hazard"], a["intent"], a["lang"], a["question"], a["answer"],
+        (a["hazard"], a["intent"], a["lang"], a["question"], " ".join(a["answer"].split()),  # layout only
          "|".join(intents[a["intent"]].keywords_ko if a["lang"] == "ko" else intents[a["intent"]].keywords_en))
         for a in answers
     ])

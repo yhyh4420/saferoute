@@ -1,5 +1,11 @@
 package com.saferoute.app.alert
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -110,14 +116,16 @@ fun AlertScreen(
                 prepared?.let { PreparedPlanCard(it, accent) }
                 QaSection(qa, onAsk, onMic, accent)
             }
+            AlertResult.OutsideArea -> Message("여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요.\nYou are outside this app's offline map (Seoul). Follow official alerts.")
             AlertResult.FarFromRoads -> Message("주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요.\nNo walkable road data nearby.")
             AlertResult.NoStepFreeRoute -> Message("계단 없이 갈 수 있는 경로가 없어요. 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요.\nNo step-free route from here.")
             null -> Message(if (fix == null) "위치를 찾는 중… 아래에서 데모 위치를 고를 수 있어요." else "계산 중…")
         }
 
         Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = stepFree, onCheckedChange = onStepFree, modifier = Modifier.testTag("stepfree"))
+            Row(verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.toggleable(value = stepFree, role = Role.Switch, onValueChange = onStepFree)) {
+                Switch(checked = stepFree, onCheckedChange = null, modifier = Modifier.testTag("stepfree"))
                 Spacer(Modifier.size(8.dp))
                 Text("계단 없는 경로 (Step-free, ${STEP_FREE_MPS} m/s)")
             }
@@ -176,6 +184,9 @@ data class QaUi(
 @Composable
 private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, accent: Color) {
     var text by remember { mutableStateOf("") }
+    val focus = LocalFocusManager.current
+    // Hide the keyboard on ask, otherwise it covers the answer.
+    fun ask() { if (text.isNotBlank()) { focus.clearFocus(); onAsk(text) } }
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Text("궁금한 점 (오프라인)", fontWeight = FontWeight.Bold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -183,9 +194,11 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true,
-                placeholder = { Text("예: 차 타도 돼요?") }, modifier = Modifier.weight(1f).testTag("qa_input"))
+                placeholder = { Text("예: 차 타도 돼요?") }, modifier = Modifier.weight(1f).testTag("qa_input"),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { ask() }))
             Spacer(Modifier.size(8.dp))
-            Button(onClick = { if (text.isNotBlank()) onAsk(text) }) { Text("묻기") }
+            Button(onClick = { ask() }) { Text("묻기") }
             Spacer(Modifier.size(4.dp))
             Button(onClick = onMic, modifier = Modifier.testTag("mic")) { Text(if (ui.listening) "■ 멈춤" else "🎤") }
         }
@@ -215,8 +228,9 @@ private fun PreparedPlanCard(p: PreparedPlanUi, accent: Color) {
 private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit, withChild: Boolean, onWithChild: (Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(12.dp)) {
         Text("평시 준비 (온라인일 때) · Muse Spark 에이전트", fontWeight = FontWeight.Bold)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(checked = withChild, onCheckedChange = onWithChild)
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.toggleable(value = withChild, role = Role.Switch, onValueChange = onWithChild)) {
+            Switch(checked = withChild, onCheckedChange = null)
             Spacer(Modifier.size(8.dp))
             Text("아이와 함께")
         }

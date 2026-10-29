@@ -23,7 +23,7 @@ class OfflineQa(db: SQLiteDatabase) {
 
     /** Best intent by matched keyword length; null when nothing matches (the UI then shows the rule text). */
     fun answer(query: String, hazard: String): QaEntry? {
-        val lang = if (query.any { it in '가'..'힣' }) "ko" else "en"
+        val lang = if (isKorean(query)) "ko" else "en"
         val q = query.lowercase()
         return questions(hazard, lang)
             .map { e -> e to e.keywords.filter { q.contains(it.lowercase()) }.sumOf { it.length } }
@@ -33,6 +33,20 @@ class OfflineQa(db: SQLiteDatabase) {
     }
 
     companion object {
-        fun fill(answer: String, shelterName: String?) = answer.replace("{SHELTER}", shelterName ?: "가장 가까운 대피소")
+        fun isKorean(text: String) = text.any { it in '가'..'힣' }
+
+        private val SHELTER_RO = Regex("""\{SHELTER\}\s*(으로|로)""")
+
+        fun fill(answer: String, shelterName: String?, korean: Boolean = true): String {
+            val name = shelterName ?: if (korean) "가장 가까운 대피소" else "the nearest shelter"
+            // Generated text cannot know the name, so pick 으로/로 here (로 after a vowel or ㄹ).
+            return answer.replace(SHELTER_RO) { name + roParticle(name) }.replace("{SHELTER}", name)
+        }
+
+        fun roParticle(word: String): String {
+            val c = word.lastOrNull { it in '가'..'힣' } ?: return "로"
+            val jong = (c - '가') % 28
+            return if (jong == 0 || jong == 8) "로" else "으로"
+        }
     }
 }

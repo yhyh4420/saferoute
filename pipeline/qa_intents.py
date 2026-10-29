@@ -57,7 +57,7 @@ INTENTS = [
            ("차로 가세요", "타고 가도 됩니다"), ("you can drive",)),
     Intent("child", BOTH, "아이랑 같이 있어요.", "I'm with my child.",
            ("아이", "아기", "애기", "자녀", "어린이"), ("child", "kid", "baby"),
-           ("{SHELTER}", "손"), ("{SHELTER}", "hand")),
+           ("{SHELTER}", "손", "높은"), ("{SHELTER}", "hand", "higher")),  # flood: "higher ground" is the destination
     Intent("injured", BOTH, "다쳐서 잘 못 걸어요.", "I'm hurt and can barely walk.",
            ("다쳐", "다쳤", "부상", "못 걸", "다리"), ("hurt", "injured", "can't walk", "leg"),
            ("119", "도움"), ("119", "help")),

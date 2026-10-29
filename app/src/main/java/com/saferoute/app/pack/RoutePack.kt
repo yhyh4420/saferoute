@@ -70,6 +70,18 @@ class RoutePack private constructor(buf: ByteBuffer) {
 
     val hazards: List<String> get() = trees.keys.map { it.hazard }.distinct()
 
+    /** Bounding box of the walking graph, padded ~2 km: outside it the pack has nothing to say. */
+    private val bbox: DoubleArray by lazy {
+        var a = Int.MAX_VALUE; var b = Int.MAX_VALUE; var c = Int.MIN_VALUE; var d = Int.MIN_VALUE
+        for (i in 0 until nodeCount) {
+            a = minOf(a, lat[i]); c = maxOf(c, lat[i]); b = minOf(b, lon[i]); d = maxOf(d, lon[i])
+        }
+        doubleArrayOf(a / SCALE - BBOX_PAD_DEG, b / SCALE - BBOX_PAD_DEG, c / SCALE + BBOX_PAD_DEG, d / SCALE + BBOX_PAD_DEG)
+    }
+
+    fun covers(latDeg: Double, lonDeg: Double): Boolean =
+        latDeg in bbox[0]..bbox[2] && lonDeg in bbox[1]..bbox[3]
+
     fun latOf(node: Int) = lat[node] / SCALE
     fun lonOf(node: Int) = lon[node] / SCALE
 
@@ -173,6 +185,7 @@ class RoutePack private constructor(buf: ByteBuffer) {
         private const val SEARCH_RINGS = 5 // ~1.1 km
         private const val METRES_PER_DEG = 111_320.0
         private const val MAX_ROUTE_NODES = 20_000
+        private const val BBOX_PAD_DEG = 0.02
 
         private fun slice(buf: ByteBuffer, bytes: Int): ByteBuffer {
             val s = buf.slice().order(ByteOrder.LITTLE_ENDIAN)

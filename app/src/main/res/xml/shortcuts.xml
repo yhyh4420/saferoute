@@ -5,7 +5,7 @@
         android:shortcutId="alert_earthquake"
         android:enabled="true"
         android:shortcutShortLabel="@string/shortcut_earthquake"
-        android:icon="@android:drawable/ic_dialog_alert">
+        android:icon="@drawable/ic_shortcut_earthquake">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="com.saferoute.app"
@@ -17,7 +17,7 @@
         android:shortcutId="alert_flood"
         android:enabled="true"
         android:shortcutShortLabel="@string/shortcut_flood"
-        android:icon="@android:drawable/ic_dialog_alert">
+        android:icon="@drawable/ic_shortcut_flood">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="com.saferoute.app"

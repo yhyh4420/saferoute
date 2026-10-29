@@ -2,7 +2,10 @@ package com.saferoute.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -57,17 +60,23 @@ class MainActivity : ComponentActivity() {
         val demoHour = intent.getIntExtra("hour", -1).takeIf { it in 0..23 }
         fun now() = demoHour?.let { LocalDate.now().atTime(it, 0) } ?: LocalDateTime.now()
         LearnWorker.schedule(this)
+        // The alert screen must stay readable while walking with the phone in hand.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
 
         setContent {
             MaterialTheme {
                 var hazard by remember { mutableStateOf(startHazard) }
-                var stepFree by remember { mutableStateOf(intent.getBooleanExtra("stepfree", false)) }
+                // Personal settings persist so nobody has to find a switch during an alert.
+                var stepFree by remember {
+                    mutableStateOf(intent.getBooleanExtra("stepfree", prefs.getBoolean("stepfree", false)))
+                }
                 var fix by remember { mutableStateOf(startPlace) }
                 var pinned by remember { mutableStateOf(startPlace != null) }
                 var result by remember { mutableStateOf<AlertResult?>(null) }
                 var heading by remember { mutableStateOf<Float?>(null) }
                 val rules = remember { db.rules() }
-                var withChild by remember { mutableStateOf(false) }
+                var withChild by remember { mutableStateOf(prefs.getBoolean("withchild", false)) }
                 var prepareUi by remember { mutableStateOf(PrepareUi()) }
                 var qaUi by remember(hazard) {
                     mutableStateOf(QaUi(quick = qa.questions(hazard, "ko").map { it.question }))
@@ -130,7 +139,7 @@ class MainActivity : ComponentActivity() {
                     hazard = hazard,
                     onHazard = { hazard = it },
                     stepFree = stepFree,
-                    onStepFree = { stepFree = it },
+                    onStepFree = { stepFree = it; prefs.edit().putBoolean("stepfree", it).apply() },
                     fix = fix,
                     places = DEMO_PLACES,
                     onPlace = { fix = it; pinned = true },
@@ -141,7 +150,8 @@ class MainActivity : ComponentActivity() {
                     withChild = withChild,
                     qa = qaUi,
                     onAsk = { askOffline(it) },
-                    onWithChild = { withChild = it },
+                    onWithChild = { withChild = it; prefs.edit().putBoolean("withchild", it).apply() },
+                    onCall119 = { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))) },
                     onMic = {
                         when {
                             voice.isRecording -> voice.stop()

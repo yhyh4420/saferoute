@@ -16,6 +16,9 @@ Built during the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), In
 4. **Planning agent while online** (Muse Spark tool calling): for each regular place, the agent calls `route_oracle`, `get_profile`, `get_shelters`, `get_guideline` and `save_plan`; every id it saves is validated against what the tools returned. Plans are cached and shown offline at alert time.
 5. **Offline Q&A without a phone-side model**: answers to common questions ("can I take the elevator?", "can I go to the underground garage?") are pre-generated with **Muse Glimmer (open weights) on a laptop**, automatically safety-checked, and shipped in the pack; the phone only matches the question.
 
+## Designed for the worst minute
+One screen, no navigation. Top to bottom: hazard buttons → action verb and what not to do → arrow, metres, minutes, destination → school-gate warning with the alternative → **📞 119** (one tap opens the dialer) → offline map → offline questions. Preparation (step-free, with a child, plan agent, learned places) is folded at the bottom and remembered, so nobody looks for a switch during an alert. The screen stays on; home-screen shortcuts open straight into the earthquake or flood screen.
+
 ## Meta models
 | Model | Role |
 |---|---|

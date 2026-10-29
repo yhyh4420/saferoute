@@ -70,14 +70,8 @@ class RoutePack private constructor(buf: ByteBuffer) {
 
     val hazards: List<String> get() = trees.keys.map { it.hazard }.distinct()
 
-    /** Bounding box of the walking graph, padded ~2 km: outside it the pack has nothing to say. */
-    private val bbox: DoubleArray by lazy {
-        var a = Int.MAX_VALUE; var b = Int.MAX_VALUE; var c = Int.MIN_VALUE; var d = Int.MIN_VALUE
-        for (i in 0 until nodeCount) {
-            a = minOf(a, lat[i]); c = maxOf(c, lat[i]); b = minOf(b, lon[i]); d = maxOf(d, lon[i])
-        }
-        doubleArrayOf(a / SCALE - BBOX_PAD_DEG, b / SCALE - BBOX_PAD_DEG, c / SCALE + BBOX_PAD_DEG, d / SCALE + BBOX_PAD_DEG)
-    }
+    /** Bounding box of the walking graph from the grid's cell keys (a few thousand, not every node), padded ~2 km. */
+    private val bbox: DoubleArray by lazy { grid.bbox(BBOX_PAD_DEG) }
 
     fun covers(latDeg: Double, lonDeg: Double): Boolean =
         latDeg in bbox[0]..bbox[2] && lonDeg in bbox[1]..bbox[3]
@@ -152,6 +146,17 @@ class RoutePack private constructor(buf: ByteBuffer) {
                 if (best >= 0 && ring >= 1) break
             }
             return if (best < 0) null else best to sqrt(bestD) * METRES_PER_DEG
+        }
+
+        fun bbox(padDeg: Double): DoubleArray {
+            var y0 = Long.MAX_VALUE; var y1 = Long.MIN_VALUE; var x0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE
+            for (i in 0 until keys.limit()) {
+                val k = keys[i]
+                val cy = Math.floorDiv(k + CELL_KEY / 2, CELL_KEY)
+                val cx = k - cy * CELL_KEY
+                y0 = minOf(y0, cy); y1 = maxOf(y1, cy); x0 = minOf(x0, cx); x1 = maxOf(x1, cx)
+            }
+            return doubleArrayOf(y0 * CELL_DEG - padDeg, x0 * CELL_DEG - padDeg, (y1 + 1) * CELL_DEG + padDeg, (x1 + 1) * CELL_DEG + padDeg)
         }
 
         fun forEachNodeIn(minLat: Double, minLon: Double, maxLat: Double, maxLon: Double, f: (Int) -> Unit) {

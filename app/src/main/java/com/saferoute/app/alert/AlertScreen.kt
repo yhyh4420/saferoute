@@ -1,5 +1,12 @@
 package com.saferoute.app.alert
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalFocusManager
@@ -52,7 +59,7 @@ import com.saferoute.app.location.Fix
 import kotlin.math.cos
 
 private val HAZARD_COLORS = mapOf("earthquake" to Color(0xFFB3261E), "flood" to Color(0xFF0B57D0))
-private val HAZARD_LABELS = mapOf("earthquake" to "지진 Earthquake", "flood" to "홍수 Flood")
+private val HAZARD_LABELS = mapOf("earthquake" to "지진", "flood" to "홍수")
 
 @Composable
 fun AlertScreen(
@@ -77,74 +84,112 @@ fun AlertScreen(
     learn: LearnUi,
     onSimulateWeek: () -> Unit,
     onLearnNow: () -> Unit,
+    onCall119: () -> Unit,
 ) {
     val rule = rules.firstOrNull { it.hazard == hazard }
     val accent = HAZARD_COLORS[hazard] ?: Color.DarkGray
-    Column(
-        Modifier.fillMaxSize().background(Color.White).verticalScroll(rememberScrollState()),
-    ) {
-        Column(Modifier.fillMaxWidth().background(accent).padding(16.dp)) {
-            Text("SafeRoute · 오프라인 대피 안내", color = Color.White, fontSize = 14.sp)
-            Spacer(Modifier.height(8.dp))
+    // One screen, no navigation: what to do now on top, preparation folded away at the bottom.
+    Column(Modifier.fillMaxSize().background(Color.White).verticalScroll(rememberScrollState())) {
+        // Edge-to-edge: the hazard colour runs under the status bar, the buttons stay below it.
+        Column(Modifier.fillMaxWidth().background(accent).statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rules.forEach { r ->
-                    FilterChip(
-                        selected = r.hazard == hazard,
+                    val selected = r.hazard == hazard
+                    Button(
                         onClick = { onHazard(r.hazard) },
-                        label = { Text(HAZARD_LABELS[r.hazard] ?: r.hazard, fontSize = 18.sp) },
-                        modifier = Modifier.testTag("hazard_${r.hazard}"),
-                        colors = FilterChipDefaults.filterChipColors(
-                            labelColor = Color.White,
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = accent,
+                        modifier = Modifier.weight(1f).height(56.dp).testTag("hazard_${r.hazard}"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selected) Color.White else Color.White.copy(alpha = 0.18f),
+                            contentColor = if (selected) accent else Color.White,
                         ),
-                    )
+                    ) { Text(HAZARD_LABELS[r.hazard] ?: r.hazard, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                 }
             }
             if (rule != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(rule.verbKo, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(rule.verbEn, color = Color.White, fontSize = 15.sp)
-                Spacer(Modifier.height(4.dp))
-                Text("⚠ ${rule.forbidKo}", color = Color.White, fontSize = 16.sp)
+                Spacer(Modifier.height(10.dp))
+                Text(rule.verbKo, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp)
+                Text(rule.verbEn, color = Color.White, fontSize = 14.sp)
+                Text("⚠ ${rule.forbidKo}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
 
         when (result) {
             is AlertResult.Ok -> {
-                GuidanceView(result.guidance, headingDeg, accent, fix, stepFree)
+                GuidanceView(result.guidance, headingDeg, accent, stepFree)
+                ActionRow(accent, onCall119)
                 prepared?.let { PreparedPlanCard(it, accent) }
+                RouteMap(result.guidance, accent, fix)
                 QaSection(qa, onAsk, onMic, accent)
+                Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함 · 출처: %s".format(result.guidance.computeMs, rule?.source ?: ""),
+                    fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp).testTag("compute_ms"))
             }
-            AlertResult.OutsideArea -> Message("여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요.\nYou are outside this app's offline map (Seoul). Follow official alerts.")
-            AlertResult.FarFromRoads -> Message("주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요.\nNo walkable road data nearby.")
-            AlertResult.NoStepFreeRoute -> Message("계단 없이 갈 수 있는 경로가 없어요. 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요.\nNo step-free route from here.")
-            null -> Message(if (fix == null) "위치를 찾는 중… 아래에서 데모 위치를 고를 수 있어요." else "계산 중…")
+            else -> {
+                Message(when (result) {
+                    AlertResult.OutsideArea -> "여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요.\nYou are outside this app's offline map (Seoul). Follow official alerts."
+                    AlertResult.FarFromRoads -> "주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요.\nNo walkable road data nearby."
+                    AlertResult.NoStepFreeRoute -> "계단 없이 갈 수 있는 경로가 없어요. 아래 '준비·설정'에서 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요.\nNo step-free route from here."
+                    else -> if (fix == null) "위치를 찾는 중… (아래 '준비·설정'에서 데모 위치를 고를 수 있어요)" else "계산 중…"
+                })
+                ActionRow(accent, onCall119)
+            }
         }
 
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.toggleable(value = stepFree, role = Role.Switch, onValueChange = onStepFree)) {
-                Switch(checked = stepFree, onCheckedChange = null, modifier = Modifier.testTag("stepfree"))
-                Spacer(Modifier.size(8.dp))
-                Text("계단 없는 경로 (Step-free, ${STEP_FREE_MPS} m/s)")
-            }
+        SettingsSection(stepFree, onStepFree, withChild, onWithChild, fix, places, onPlace, prepare, onPrepare,
+            learn, onSimulateWeek, onLearnNow)
+    }
+}
+
+@Composable
+private fun ActionRow(accent: Color, onCall119: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onCall119, modifier = Modifier.weight(1f).height(52.dp).testTag("call119")) {
+            Text("📞 119 신고", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+/** Everyday preparation and personal settings: never needed during an alert, so folded by default. */
+@Composable
+private fun SettingsSection(
+    stepFree: Boolean, onStepFree: (Boolean) -> Unit, withChild: Boolean, onWithChild: (Boolean) -> Unit,
+    fix: Fix?, places: List<Fix>, onPlace: (Fix) -> Unit, prepare: PrepareUi, onPrepare: () -> Unit,
+    learn: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: () -> Unit,
+) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
+        HorizontalDivider()
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 14.dp).testTag("settings_toggle"),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("준비 · 설정", fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+            val on = listOfNotNull("계단 없는 경로".takeIf { stepFree }, "아이와 함께".takeIf { withChild })
+            if (on.isNotEmpty()) Text(on.joinToString(" · "), fontSize = 13.sp, color = Color.Gray)
+            Text(if (open) "  ▲" else "  ▼", fontSize = 15.sp)
+        }
+        if (open) {
+            SettingRow("계단 없는 경로 (Step-free, $STEP_FREE_MPS m/s)", stepFree, onStepFree, "stepfree")
+            SettingRow("아이와 함께 (계획에 반영)", withChild, onWithChild, "withchild")
             Spacer(Modifier.height(8.dp))
-            Text("위치: ${fix?.label ?: "없음"}", style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PrepareSection(prepare, onPrepare)
+            Spacer(Modifier.height(12.dp))
+            LearnSection(learn, onSimulateWeek, onLearnNow)
+            Spacer(Modifier.height(12.dp))
+            Text("데모 위치 · 지금: ${fix?.label ?: "없음"}", style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 places.forEach { p ->
                     FilterChip(selected = fix == p, onClick = { onPlace(p) }, label = { Text(p.label.substringBefore(" (")) })
                 }
             }
-            if (rule != null) {
-                Spacer(Modifier.height(8.dp))
-                Text("행동요령 출처: ${rule.source}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-            Spacer(Modifier.height(16.dp))
-            PrepareSection(prepare, onPrepare, withChild, onWithChild)
-            Spacer(Modifier.height(12.dp))
-            LearnSection(learn, onSimulateWeek, onLearnNow)
         }
+    }
+}
+
+@Composable
+private fun SettingRow(label: String, value: Boolean, onChange: (Boolean) -> Unit, tag: String) {
+    Row(Modifier.fillMaxWidth().toggleable(value = value, role = Role.Switch, onValueChange = onChange).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Switch(checked = value, onCheckedChange = null, modifier = Modifier.testTag(tag))
+        Spacer(Modifier.size(10.dp))
+        Text(label)
     }
 }
 
@@ -188,9 +233,17 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
     // Hide the keyboard on ask, otherwise it covers the answer.
     fun ask() { if (text.isNotBlank()) { focus.clearFocus(); onAsk(text) } }
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        // Answer first: it is what the person is looking for after tapping a question.
+        ui.answer?.let {
+            Column(Modifier.fillMaxWidth().background(accent.copy(alpha = 0.08f)).padding(12.dp)) {
+                ui.asked?.let { q -> Text("Q. $q", fontSize = 14.sp, color = Color.Gray) }
+                Text(it, fontSize = 19.sp, color = accent, fontWeight = FontWeight.Medium, modifier = Modifier.testTag("qa_answer"))
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         Text("궁금한 점 (오프라인)", fontWeight = FontWeight.Bold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ui.quick.forEach { q -> AssistChip(onClick = { onAsk(q) }, label = { Text(q, fontSize = 13.sp) }) }
+            ui.quick.forEach { q -> AssistChip(onClick = { onAsk(q) }, label = { Text(q, fontSize = 15.sp) }) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true,
@@ -203,8 +256,6 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
             Button(onClick = onMic, modifier = Modifier.testTag("mic")) { Text(if (ui.listening) "■ 멈춤" else "🎤") }
         }
         ui.voiceStatus?.let { Text(it, fontSize = 12.sp, color = Color.Gray) }
-        ui.asked?.let { Text("Q. $it", fontSize = 14.sp, color = Color.Gray) }
-        ui.answer?.let { Text(it, fontSize = 18.sp, color = accent, modifier = Modifier.testTag("qa_answer")) }
     }
 }
 
@@ -215,7 +266,7 @@ data class PrepareUi(val running: Boolean = false, val log: List<String> = empty
 
 @Composable
 private fun PreparedPlanCard(p: PreparedPlanUi, accent: Color) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).background(Color(0xFFF7F2FA)).padding(12.dp)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).background(Color(0xFFF7F2FA)).padding(12.dp)
         .testTag("prepared_plan")) {
         Text("미리 준비한 계획 · ${p.placeLabel}", fontWeight = FontWeight.Bold, color = accent)
         Text(p.notesKo, fontSize = 16.sp)
@@ -225,15 +276,9 @@ private fun PreparedPlanCard(p: PreparedPlanUi, accent: Color) {
 }
 
 @Composable
-private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit, withChild: Boolean, onWithChild: (Boolean) -> Unit) {
+private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(12.dp)) {
         Text("평시 준비 (온라인일 때) · Muse Spark 에이전트", fontWeight = FontWeight.Bold)
-        Row(verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.toggleable(value = withChild, role = Role.Switch, onValueChange = onWithChild)) {
-            Switch(checked = withChild, onCheckedChange = null)
-            Spacer(Modifier.size(8.dp))
-            Text("아이와 함께")
-        }
         Button(onClick = onPrepare, enabled = !ui.running, modifier = Modifier.testTag("prepare")) {
             Text(if (ui.running) "계획 만드는 중…" else "이 장소 계획 만들기")
         }
@@ -243,33 +288,37 @@ private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit, withChild: Bool
 }
 
 @Composable
-private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, fix: Fix?, stepFree: Boolean) {
-    Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        // With a compass the arrow is relative to where the phone points; without one it is north-up.
-        val arrowDeg = g.bearingDeg - (headingDeg ?: 0f)
-        Canvas(Modifier.size(140.dp).testTag("arrow")) {
-            rotate(arrowDeg) {
-                val w = size.width
-                val path = Path().apply {
-                    moveTo(w / 2, 0f); lineTo(w * 0.85f, w * 0.55f); lineTo(w * 0.6f, w * 0.55f)
-                    lineTo(w * 0.6f, w); lineTo(w * 0.4f, w); lineTo(w * 0.4f, w * 0.55f)
-                    lineTo(w * 0.15f, w * 0.55f); close()
+private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFree: Boolean) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // With a compass the arrow is relative to where the phone points; without one it is north-up.
+            val arrowDeg = g.bearingDeg - (headingDeg ?: 0f)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Canvas(Modifier.size(112.dp).testTag("arrow")) {
+                    rotate(arrowDeg) {
+                        val w = size.width
+                        val path = Path().apply {
+                            moveTo(w / 2, 0f); lineTo(w * 0.88f, w * 0.52f); lineTo(w * 0.62f, w * 0.52f)
+                            lineTo(w * 0.62f, w); lineTo(w * 0.38f, w); lineTo(w * 0.38f, w * 0.52f)
+                            lineTo(w * 0.12f, w * 0.52f); close()
+                        }
+                        drawPath(path, accent)
+                    }
                 }
-                drawPath(path, accent)
+                Text(if (headingDeg == null) "북쪽 기준" else "휴대폰 방향", fontSize = 11.sp, color = Color.Gray)
+            }
+            Spacer(Modifier.size(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("${g.distanceM} m", fontSize = 40.sp, fontWeight = FontWeight.Black, lineHeight = 44.sp,
+                    modifier = Modifier.testTag("distance"))
+                Text("걸어서 약 ${g.walkMinutes}분" + if (stepFree) " · 계단 없이" else "", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(g.shelter.name, fontSize = 22.sp, color = accent, fontWeight = FontWeight.Bold, lineHeight = 26.sp,
+                    modifier = Modifier.testTag("shelter_name"))
             }
         }
-        Text(if (headingDeg == null) "북쪽 기준 (나침반 없음)" else "휴대폰 방향 기준", fontSize = 12.sp, color = Color.Gray)
-        Spacer(Modifier.height(8.dp))
-        Text("${g.distanceM} m · 도보 약 ${g.walkMinutes}분", fontSize = 30.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag("distance"))
-        Text(g.shelter.name, fontSize = 22.sp, modifier = Modifier.testTag("shelter_name"))
-        Text(g.shelter.source, fontSize = 12.sp, color = Color.Gray)
-        g.lockWarning?.let { LockWarningCard(it) }
-        Spacer(Modifier.height(12.dp))
-        RouteMap(g, accent, fix)
-        Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함".format(g.computeMs), fontSize = 12.sp, color = Color.Gray,
-            modifier = Modifier.testTag("compute_ms"))
+        Text(g.shelter.source, fontSize = 11.sp, color = Color.Gray)
         if (stepFree) Text("계단 없는 경로 기준", fontSize = 12.sp, color = Color.Gray)
+        g.lockWarning?.let { LockWarningCard(it) }
     }
 }
 

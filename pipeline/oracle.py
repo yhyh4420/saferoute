@@ -33,7 +33,12 @@ MAGIC, VERSION = b"SRPK", 2
 GRID_CELL_DEG = 0.002  # ~220 m; must match RoutePack.kt
 GRID_KEY = 1_000_000
 PROFILES = ("default", "stepfree")
-UNLOCKED = "unlocked"  # default walking, but never towards a may_lock destination (night/holiday fallback)
+UNLOCKED = "unlocked"  # never towards a may_lock destination (night/holiday fallback)
+UNLOCKED_PROFILES = (UNLOCKED, "unlocked_stepfree")  # the fallback must respect step-free too
+
+
+def is_unlocked(profile: str) -> bool:
+    return profile.startswith(UNLOCKED)
 
 
 @dataclass
@@ -51,7 +56,7 @@ def edge_weight(g: WalkGraph, hazard: str, profile: str) -> np.ndarray:
         w[g.underground] *= UNDERGROUND_PENALTY
     if "flood_trace" in HAZARD_RULES[hazard].avoid_edges and g.flood_trace is not None:
         w[g.flood_trace] *= FLOOD_TRACE_PENALTY
-    if profile == "stepfree":
+    if profile.endswith("stepfree"):
         w[g.steps] = np.inf
     return w
 
@@ -63,7 +68,7 @@ def snap(g: WalkGraph, lat: np.ndarray, lon: np.ndarray) -> tuple[np.ndarray, np
 
 
 def build_tree(g: WalkGraph, shelters: list[Shelter], hazard: str, profile: str) -> Tree:
-    idx = [k for k, s in enumerate(shelters) if suitable(s, hazard) and not (profile == UNLOCKED and s.may_lock)]
+    idx = [k for k, s in enumerate(shelters) if suitable(s, hazard) and not (is_unlocked(profile) and s.may_lock)]
     nodes, _ = snap(g, np.array([shelters[k].lat for k in idx]), np.array([shelters[k].lon for k in idx]))
     node_shelter: dict[int, int] = {}
     for k, n in zip(idx, nodes):
@@ -124,7 +129,7 @@ def check(trees: list[Tree], shelters: list[Shelter]) -> dict:
     for t in trees:
         reach = t.next >= 0
         bad = {int(s) for s in np.unique(t.shelter[reach]) if not suitable(shelters[int(s)], t.hazard)
-               or (t.profile == UNLOCKED and shelters[int(s)].may_lock)}
+               or (is_unlocked(t.profile) and shelters[int(s)].may_lock)}
         out[f"{t.hazard}/{t.profile}"] = {
             "coverage_pct": round(float(reach.mean() * 100), 2),
             "rule_violations": len(bad),

@@ -8,7 +8,16 @@ import java.time.LocalDateTime
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class Profile(val with: String, val stepFree: Boolean)
+data class Profile(val with: String, val stepFree: Boolean) {
+    companion object {
+        /** The user's saved settings (alert screen "준비·설정"), shared with the background worker. */
+        fun fromSettings(context: android.content.Context): Profile {
+            val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            return Profile(if (prefs.getBoolean("withchild", false)) "a 5-year-old child" else "alone",
+                prefs.getBoolean("stepfree", false))
+        }
+    }
+}
 
 data class Plan(
     val placeLabel: String,
@@ -19,6 +28,8 @@ data class Plan(
     val backupId: String?,
     val meetingPointId: String?,
     val notesKo: String,
+    /** Made for a step-free profile: a plan with possible stairs must not be shown to a step-free user. */
+    val stepFree: Boolean = false,
 )
 
 data class AgentRun(
@@ -125,7 +136,7 @@ class PlanAgent(
         val plan = saved?.let {
             Plan(place.label, place.lat, place.lon, hazard, it.optString("primary_shelter_id"),
                 it.optString("backup_shelter_id").ifBlank { null }, it.optString("meeting_point_id").ifBlank { null },
-                it.optString("notes_ko"))
+                it.optString("notes_ko"), profile.stepFree)
         }
         return AgentRun(plan, validate(plan, hazard, seen, oracleId), log, promptTokens, completionTokens)
     }

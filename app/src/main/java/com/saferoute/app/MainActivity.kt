@@ -102,25 +102,33 @@ class MainActivity : ComponentActivity() {
                     learnUi = LearnUi(
                         visits = learner.visits().size,
                         places = learner.places().map { p ->
-                            LearnedPlaceUi(p.label, p.days, rules.map { r -> r.hazard to (plans.lookup(p.lat, p.lon, r.hazard) != null) })
+                            LearnedPlaceUi(p.label, p.days, rules.map { r -> r.hazard to (plans.lookup(p.lat, p.lon, r.hazard, stepFree) != null) })
                         },
                         running = running,
                         status = status,
                     )
                 }
-                LaunchedEffect(planVersion) { refreshLearn() }
+                LaunchedEffect(planVersion, stepFree) { refreshLearn() }
                 fun askOffline(q: String) {
-                    val shelterName = (result as? AlertResult.Ok)?.guidance?.shelter?.name
+                    val guidance = (result as? AlertResult.Ok)?.guidance
+                    val shelterName = guidance?.shelter?.name
                     val hit = qa.answer(q, hazard)
                     val korean = OfflineQa.isKorean(q)
-                    qaUi = qaUi.copy(asked = q, answer = hit?.let { OfflineQa.fill(it.answer, shelterName, korean) }
+                    val base = hit?.let { OfflineQa.fill(it.answer, shelterName, korean) }
                         ?: rules.first { it.hazard == hazard }.let {
                             if (korean) "${it.verbKo}. ${it.forbidKo}." else "${it.verbEn}. ${it.forbidEn}."
-                        })
+                        }
+                    // An answer that sends people to a school yard at night must carry the locked-gate fallback.
+                    val alt = guidance?.lockWarning?.alternative?.shelter?.name
+                    val lockNote = if (alt != null && shelterName != null && base.contains(shelterName)) {
+                        if (korean) " 밤·주말엔 문이 잠겨 있을 수 있어요. 잠겨 있으면 $alt${OfflineQa.roParticle(alt)} 가세요."
+                        else " The gate may be locked at night or at weekends; if so, go to $alt."
+                    } else ""
+                    qaUi = qaUi.copy(asked = q, answer = base + lockNote)
                 }
                 val scope = rememberCoroutineScope()
-                val prepared = remember(fix, hazard, planVersion) {
-                    fix?.let { f -> plans.lookup(f.lat, f.lon, hazard) }?.let { p ->
+                val prepared = remember(fix, hazard, stepFree, planVersion) {
+                    fix?.let { f -> plans.lookup(f.lat, f.lon, hazard, stepFree) }?.let { p ->
                         // Plans made from a raw GPS fix carry the fix label; show where it applies instead.
                         PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치")) "이 근처" else p.placeLabel, p.notesKo, p.backupId?.let { db.byId(it)?.name },
                             p.meetingPointId?.let { db.byId(it)?.name })
@@ -163,7 +171,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 LaunchedEffect(Unit) { headingUpdates(this@MainActivity).collect { heading = it } }
-                LaunchedEffect(fix, hazard, stepFree) {
+                // Re-evaluate every minute too: school gates close at 18:00 even if nobody moves.
+                var minute by remember { mutableStateOf(0L) }
+                LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); minute++ } }
+                LaunchedEffect(fix, hazard, stepFree, minute) {
                     val f = fix ?: return@LaunchedEffect
                     result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree, now()) }
                 }

@@ -70,4 +70,6 @@ adb shell cmd connectivity airplane-mode enable && ./gradlew connectedDebugAndro
 - Third-party apps cannot read Korean Cell Broadcast alerts; alerts are triggered from the app, a widget or a simulation.
 - "Step-free" removes stairs only; OSM has almost no wheelchair/incline data in Seoul, so it is not a wheelchair route.
 - The school-gate warning uses fixed hours (18–06) and weekends; public holidays are not included.
+- Demo builds embed `META_API_KEY` from `.env` in the APK (BuildConfig) so the planning agent and voice questions work on a test phone. Do not distribute such an APK; a public build would call Muse Spark through a server that holds the key. The offline alert path uses no key at all.
+- Official guidance says "use the stairs, not the elevator" after an earthquake; for step-free users the app keeps that text (it cannot invent guidance) but routes without stairs.
 - Walking speeds are planning values (1.0 m/s, 0.5 m/s step-free), not measured per person.

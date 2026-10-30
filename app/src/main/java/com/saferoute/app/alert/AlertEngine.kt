@@ -93,7 +93,7 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
     }
 
     private fun alternative(node: Int, snapM: Double, hazard: String, stepFree: Boolean): Alternative? {
-        val route = pack.route(node, RoutePack.TreeKey(hazard, "unlocked")) ?: return null
+        val route = pack.route(node, RoutePack.TreeKey(hazard, if (stepFree) "unlocked_stepfree" else "unlocked")) ?: return null
         val shelter = db.shelter(route.shelterIdx) ?: return null
         val totalM = route.distanceM + snapM
         val minutes = (totalM / (if (stepFree) STEP_FREE_MPS else WALK_MPS) / 60).roundToInt().coerceAtLeast(1)

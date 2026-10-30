@@ -22,7 +22,7 @@ class LearnWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
     override suspend fun doWork(): Result {
         val g = SafeRouteGraph.get(applicationContext)
         g.location.lastKnown()?.let { g.learner.record(Visit(it.lat, it.lon, System.currentTimeMillis())) }
-        val made = prepareMissingPlans(g, Profile("alone", stepFree = false))
+        val made = prepareMissingPlans(g, Profile.fromSettings(applicationContext))
         Log.i("SafeRoute", "learn_worker places=${g.learner.places().size} new_plans=$made")
         return Result.success()
     }
@@ -42,7 +42,7 @@ class LearnWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
             var saved = 0
             for (place in g.learner.places()) {
                 for (hazard in g.db.rules().map { it.hazard }) {
-                    if (g.plans.lookup(place.lat, place.lon, hazard) != null) continue
+                    if (g.plans.lookup(place.lat, place.lon, hazard, profile.stepFree) != null) continue
                     val run = runCatching { g.agent.run(Fix(place.lat, place.lon, place.label), hazard, profile, onTool) }.getOrNull()
                     if (run?.plan != null && run.problems.isEmpty()) { g.plans.save(run.plan); saved++ }
                 }

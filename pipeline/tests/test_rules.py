@@ -75,3 +75,6 @@ def test_school_yards_may_lock_and_unlocked_tree_avoids_them():
                   np.zeros(2, bool), np.zeros(2, bool))
     assert oracle.build_tree(g, shelters, "earthquake", "default").shelter[2] == 0
     assert oracle.build_tree(g, shelters, "earthquake", oracle.UNLOCKED).shelter[2] == 1
+    # Step-free fallback: the only way to the park is a staircase, so there is no step-free alternative.
+    g.steps[:] = [False, True]
+    assert oracle.build_tree(g, shelters, "earthquake", "unlocked_stepfree").next[2] == -1

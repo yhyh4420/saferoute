@@ -15,23 +15,23 @@ class PlanStore(context: Context) {
             val o = arr.getJSONObject(i)
             Plan(o.getString("place"), o.getDouble("lat"), o.getDouble("lon"), o.getString("hazard"),
                 o.getString("primary"), o.optString("backup").ifBlank { null },
-                o.optString("meeting").ifBlank { null }, o.getString("notes"))
+                o.optString("meeting").ifBlank { null }, o.getString("notes"), o.optBoolean("stepfree", false))
         }
     }
 
     fun save(plan: Plan) {
-        val kept = all().filterNot { it.hazard == plan.hazard && near(it, plan.lat, plan.lon) } + plan
+        val kept = all().filterNot { it.hazard == plan.hazard && it.stepFree == plan.stepFree && near(it, plan.lat, plan.lon) } + plan
         val arr = JSONArray(kept.map {
             JSONObject().put("place", it.placeLabel).put("lat", it.lat).put("lon", it.lon).put("hazard", it.hazard)
                 .put("primary", it.primaryId).put("backup", it.backupId ?: "").put("meeting", it.meetingPointId ?: "")
-                .put("notes", it.notesKo)
+                .put("notes", it.notesKo).put("stepfree", it.stepFree)
         })
         prefs.edit().putString(KEY, arr.toString()).apply()
     }
 
     /** The plan prepared for a place within [RADIUS_M] of here, for this hazard. */
-    fun lookup(lat: Double, lon: Double, hazard: String): Plan? =
-        all().filter { it.hazard == hazard && near(it, lat, lon) }
+    fun lookup(lat: Double, lon: Double, hazard: String, stepFree: Boolean): Plan? =
+        all().filter { it.hazard == hazard && it.stepFree == stepFree && near(it, lat, lon) }
             .minByOrNull { AlertEngine.metres(lat to lon, it.lat to it.lon) }
 
     private fun near(p: Plan, lat: Double, lon: Double) = AlertEngine.metres(lat to lon, p.lat to p.lon) <= RADIUS_M

@@ -7,9 +7,8 @@ plugins {
 // outputs and breaks Gradle's hashing; keep build outputs outside the synced folder.
 layout.buildDirectory.set(file("${System.getProperty("user.home")}/.saferoute-build/app"))
 
-// Meta Model API key for the planning agent, read from the repo-root .env (never committed).
-val metaApiKey: String = rootDir.resolve("../.env").takeIf { it.exists() }?.readLines()
-    ?.firstOrNull { it.startsWith("META_API_KEY=") }?.substringAfter("=")?.trim().orEmpty()
+// The Meta API key is NOT compiled into the APK: provision it on a test phone with
+// scripts/provision_key.sh (stored encrypted with the Android Keystore, see ApiKeyStore).
 
 android {
     namespace = "com.saferoute.app"
@@ -22,12 +21,11 @@ android {
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "META_API_KEY", "\"$metaApiKey\"")
     }
 
     buildFeatures {
         compose = true
-        buildConfig = true
+        buildConfig = false
     }
 
     androidResources {

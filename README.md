@@ -48,8 +48,9 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python osmnx ne
 .venv/bin/python -m pytest pipeline/tests
 cp pipeline/out/pack_seoul.* app/src/main/assets/
 
-# app (Android Studio's JBR; put META_API_KEY=... in .env for the planning agent)
-cd app && ./gradlew assembleDebug
+# app (Android Studio's JBR). The APK contains no API key; for the online planning agent and
+# voice questions, put META_API_KEY=... in .env and provision it onto the connected phone:
+cd app && ./gradlew installDebug && ../scripts/provision_key.sh
 adb shell am start -n com.saferoute.app/.MainActivity --es hazard flood --ei place 0   # demo location
 adb shell cmd connectivity airplane-mode enable && ./gradlew connectedDebugAndroidTest
 ```
@@ -70,6 +71,6 @@ adb shell cmd connectivity airplane-mode enable && ./gradlew connectedDebugAndro
 - Third-party apps cannot read Korean Cell Broadcast alerts; alerts are triggered from the app, a widget or a simulation.
 - "Step-free" removes stairs only; OSM has almost no wheelchair/incline data in Seoul, so it is not a wheelchair route.
 - The school-gate warning uses fixed hours (18–06) and weekends; public holidays are not included.
-- Demo builds embed `META_API_KEY` from `.env` in the APK (BuildConfig) so the planning agent and voice questions work on a test phone. Do not distribute such an APK; a public build would call Muse Spark through a server that holds the key. The offline alert path uses no key at all.
+- The Meta API key is **not in the APK**. On a test phone it is provisioned once over USB (`scripts/provision_key.sh`, debug builds only) and immediately re-encrypted with a non-exportable Android Keystore key; the plaintext copy is deleted. A production build would call Muse Spark through a server holding the key. The offline alert path needs no key.
 - Official guidance says "use the stairs, not the elevator" after an earthquake; for step-free users the app keeps that text (it cannot invent guidance) but routes without stairs.
 - Walking speeds are planning values (1.0 m/s, 0.5 m/s step-free), not measured per person.

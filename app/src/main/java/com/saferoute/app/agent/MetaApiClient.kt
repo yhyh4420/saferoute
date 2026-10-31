@@ -6,7 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Minimal Meta Model API (Chat Completions) client. Used only while online, never on the alert path. */
-class MetaApiClient(private val apiKey: String) {
+/** [apiKey] is read per request: the key may be provisioned after the app started (ApiKeyStore). */
+class MetaApiClient(private val apiKey: () -> String) {
 
     data class Usage(val promptTokens: Int, val completionTokens: Int)
 
@@ -35,7 +36,7 @@ class MetaApiClient(private val apiKey: String) {
             readTimeout = 120_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Authorization", "Bearer $apiKey")
+            setRequestProperty("Authorization", "Bearer ${apiKey()}")
         }
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray()) }

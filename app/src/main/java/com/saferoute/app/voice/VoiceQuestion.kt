@@ -18,7 +18,7 @@ import org.json.JSONObject
  * text; the text then goes through the same offline intent matching as typed questions, so the
  * answer is still a pre-checked one (VALIDATION V13, V20).
  */
-class VoiceQuestion(private val apiKey: String) {
+class VoiceQuestion(private val apiKey: () -> String) {
     private val recording = AtomicBoolean(false)
 
     /** Records 16 kHz mono PCM until [stop] or [MAX_SECONDS]; blocks the calling (IO) thread. */
@@ -76,7 +76,7 @@ class VoiceQuestion(private val apiKey: String) {
             connectTimeout = 10_000
             readTimeout = 30_000
             doOutput = true
-            setRequestProperty("Authorization", "Bearer $apiKey")
+            setRequestProperty("Authorization", "Bearer ${apiKey()}")
             setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             setRequestProperty("Accept", "application/json")
         }

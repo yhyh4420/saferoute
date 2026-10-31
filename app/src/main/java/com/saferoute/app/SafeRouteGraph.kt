@@ -3,6 +3,7 @@ package com.saferoute.app
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import com.saferoute.app.agent.ApiKeyStore
 import com.saferoute.app.agent.MetaApiClient
 import com.saferoute.app.agent.PlanAgent
 import com.saferoute.app.agent.PlanStore
@@ -27,7 +28,8 @@ class SafeRouteGraph private constructor(ctx: Context) {
     val plans by lazy { PlanStore(ctx) }
     val learner by lazy { PlaceLearner(ctx) }
     val qa by lazy { OfflineQa(db.db) }
-    val agent by lazy { PlanAgent(MetaApiClient(BuildConfig.META_API_KEY), engine, db) }
+    val apiKey by lazy { ApiKeyStore(ctx) }
+    val agent by lazy { PlanAgent(MetaApiClient(apiKey::get), engine, db) }
 
     companion object {
         @Volatile private var instance: SafeRouteGraph? = null

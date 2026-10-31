@@ -22,7 +22,8 @@ class LearnWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
     override suspend fun doWork(): Result {
         val g = SafeRouteGraph.get(applicationContext)
         g.location.lastKnown()?.let { g.learner.record(Visit(it.lat, it.lon, System.currentTimeMillis())) }
-        val made = prepareMissingPlans(g, Profile.fromSettings(applicationContext))
+        // No provisioned key: learn places anyway, but do not call the API (it would only fail).
+        val made = if (g.apiKey.get().isBlank()) 0 else prepareMissingPlans(g, Profile.fromSettings(applicationContext))
         Log.i("SafeRoute", "learn_worker places=${g.learner.places().size} new_plans=$made")
         return Result.success()
     }

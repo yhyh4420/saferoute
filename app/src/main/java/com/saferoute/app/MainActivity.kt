@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
     private val qa get() = g.qa
     private val agent get() = g.agent
     private val learner get() = g.learner
-    private val voice by lazy { VoiceQuestion(BuildConfig.META_API_KEY) }
+    private val voice by lazy { VoiceQuestion(g.apiKey::get) }
 
     /** Intents that arrive while the screen is already open (e.g. the flood shortcut over the quake screen). */
     private val newIntent = mutableStateOf<Intent?>(null)
@@ -70,6 +70,8 @@ class MainActivity : ComponentActivity() {
         val demoHour = intent.getIntExtra("hour", -1).takeIf { it in 0..23 }
         fun now() = demoHour?.let { LocalDate.now().atTime(it, 0) } ?: LocalDateTime.now()
         LearnWorker.schedule(this)
+        // Seal a freshly provisioned API key right away so the plaintext copy lives only seconds.
+        Thread { g.apiKey.get() }.start()
         // The alert screen must stay readable while walking with the phone in hand.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
@@ -207,6 +209,7 @@ class MainActivity : ComponentActivity() {
                         when {
                             voice.isRecording -> voice.stop()
                             !online() -> qaUi = qaUi.copy(voiceStatus = "음성 질문은 온라인에서만 돼요. 위의 질문 버튼을 눌러 주세요.")
+                            g.apiKey.get().isBlank() -> qaUi = qaUi.copy(voiceStatus = "이 기기에 API 키가 없어 음성 질문을 쓸 수 없어요. 위의 질문 버튼을 눌러 주세요.")
                             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
                                 micPermission.launch(Manifest.permission.RECORD_AUDIO)
                             else -> scope.launch {
@@ -249,7 +252,7 @@ class MainActivity : ComponentActivity() {
                         when {
                             f == null -> prepareUi = PrepareUi(status = "위치가 필요해요.")
                             !online() -> prepareUi = PrepareUi(status = "오프라인이에요. 계획은 온라인일 때 미리 만들어 두세요.")
-                            BuildConfig.META_API_KEY.isBlank() -> prepareUi = PrepareUi(status = "META_API_KEY가 빌드에 없어요.")
+                            g.apiKey.get().isBlank() -> prepareUi = PrepareUi(status = "이 기기에 API 키가 없어요 (scripts/provision_key.sh). 오프라인 안내는 키 없이 동작해요.")
                             else -> scope.launch {
                                 prepareUi = PrepareUi(running = true)
                                 val profile = Profile(if (withChild) "a 5-year-old child" else "alone", stepFree)

@@ -28,6 +28,7 @@ data class Plan(
     val backupId: String?,
     val meetingPointId: String?,
     val notesKo: String,
+    val notesEn: String? = null,
     /** Made for a step-free profile: a plan with possible stairs must not be shown to a step-free user. */
     val stepFree: Boolean = false,
 )
@@ -136,7 +137,7 @@ class PlanAgent(
         val plan = saved?.let {
             Plan(place.label, place.lat, place.lon, hazard, it.optString("primary_shelter_id"),
                 it.optString("backup_shelter_id").ifBlank { null }, it.optString("meeting_point_id").ifBlank { null },
-                it.optString("notes_ko"), profile.stepFree)
+                it.optString("notes_ko"), it.optString("notes_en").ifBlank { null }, profile.stepFree)
         }
         return AgentRun(plan, validate(plan, hazard, seen, oracleId), log, promptTokens, completionTokens)
     }
@@ -165,7 +166,7 @@ class PlanAgent(
             "If the primary may be locked at night, use its night_alternative as the backup. " +
             "Use get_shelters only to pick a backup and a family meeting point. Never name a place, id or " +
             "distance that a tool did not return. Follow get_guideline for the hazard. When done, call " +
-            "save_plan exactly once. Notes must be short, in Korean, action-first."
+            "save_plan exactly once. Notes must be short and action-first: notes_ko in Korean and notes_en with the same content in English."
 
         val TOOLS: JSONArray by lazy {
             fun fn(name: String, desc: String, props: JSONObject, required: List<String>) = JSONObject()
@@ -189,7 +190,8 @@ class PlanAgent(
                     JSONObject().put("hazard", hazard).put("primary_shelter_id", JSONObject().put("type", "string"))
                         .put("backup_shelter_id", JSONObject().put("type", "string"))
                         .put("meeting_point_id", JSONObject().put("type", "string"))
-                        .put("notes_ko", JSONObject().put("type", "string")),
+                        .put("notes_ko", JSONObject().put("type", "string"))
+                        .put("notes_en", JSONObject().put("type", "string").put("description", "The same notes in English")),
                     listOf("hazard", "primary_shelter_id", "notes_ko")))
         }
     }

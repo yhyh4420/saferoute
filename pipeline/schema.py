@@ -10,6 +10,8 @@ import sqlite3
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from pipeline.romanize import name_en
+
 # Facility types a country adapter may emit.
 OUTDOOR_OPEN_SPACE = "outdoor_open_space"  # 지진 옥외대피장소 (parks, school yards)
 TEMPORARY_HOUSING = "temporary_housing"  # 이재민 임시주거시설
@@ -139,7 +141,7 @@ def write_pack(shelters: list[Shelter], path: Path, hazards: list[str] | None = 
         """CREATE TABLE shelter (
             idx INTEGER PRIMARY KEY, id TEXT UNIQUE, country TEXT, name TEXT, lat REAL, lon REAL,
             facility TEXT, hazards TEXT, address TEXT, capacity INTEGER, underground INTEGER,
-            source TEXT, updated_at TEXT, may_lock INTEGER)"""
+            source TEXT, updated_at TEXT, may_lock INTEGER, name_en TEXT)"""
     )
     con.execute(
         """CREATE TABLE hazard_rule (
@@ -153,11 +155,12 @@ def write_pack(shelters: list[Shelter], path: Path, hazards: list[str] | None = 
         d["hazards"] = ",".join(s.hazards)
         d["underground"] = int(s.underground)
         d["may_lock"] = int(s.may_lock)
+        d["name_en"] = name_en(s.name) if s.country == "KR" else ""  # reading aid next to the unchanged name
         rows.append(d)
     con.executemany(
         """INSERT INTO shelter VALUES
            (:idx, :id, :country, :name, :lat, :lon, :facility, :hazards, :address,
-            :capacity, :underground, :source, :updated_at, :may_lock)""",
+            :capacity, :underground, :source, :updated_at, :may_lock, :name_en)""",
         rows,
     )
     con.executemany(

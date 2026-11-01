@@ -21,6 +21,9 @@ class OfflineQa(db: SQLiteDatabase) {
 
     fun questions(hazard: String, lang: String): List<QaEntry> = entries.filter { it.hazard == hazard && it.lang == lang }
 
+    /** The same intent's pre-checked entry in the other language (answers are shown in both). */
+    fun counterpart(e: QaEntry): QaEntry? = entries.firstOrNull { it.hazard == e.hazard && it.intent == e.intent && it.lang != e.lang }
+
     /** Best intent by matched keyword length; null when nothing matches (the UI then shows the rule text). */
     fun answer(query: String, hazard: String): QaEntry? {
         val lang = if (isKorean(query)) "ko" else "en"

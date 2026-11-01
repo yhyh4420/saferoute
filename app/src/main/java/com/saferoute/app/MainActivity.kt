@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
                 var fieldLogLines by remember { mutableStateOf(g.fieldLog.lines()) }
                 var prepareUi by remember { mutableStateOf(PrepareUi()) }
                 var qaUi by remember(hazard) {
-                    mutableStateOf(QaUi(quick = qa.questions(hazard, "ko").map { it.question }))
+                    mutableStateOf(QaUi(quick = qa.questions(hazard, "ko").map { it.question to (qa.counterpart(it)?.question ?: "") }))
                 }
                 var planVersion by remember { mutableStateOf(0) }
                 var learnUi by remember { mutableStateOf(LearnUi()) }
@@ -118,28 +118,32 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(planVersion, stepFree) { refreshLearn() }
                 fun askOffline(q: String) {
                     val guidance = (result as? AlertResult.Ok)?.guidance
-                    val shelterName = guidance?.shelter?.name
+                    val shelter = guidance?.shelter
                     val hit = qa.answer(q, hazard)
                     val korean = OfflineQa.isKorean(q)
-                    val base = hit?.let { OfflineQa.fill(it.answer, shelterName, korean) }
-                        ?: rules.first { it.hazard == hazard }.let {
-                            if (korean) "${it.verbKo}. ${it.forbidKo}." else "${it.verbEn}. ${it.forbidEn}."
-                        }
-                    // An answer that sends people to a school yard at night must carry the locked-gate fallback.
-                    val alt = guidance?.lockWarning?.alternative?.shelter?.name
-                    val lockNote = if (alt != null && shelterName != null && base.contains(shelterName)) {
-                        if (korean) " 밤·주말엔 문이 잠겨 있을 수 있어요. 잠겨 있으면 $alt${OfflineQa.roParticle(alt)} 가세요."
-                        else " The gate may be locked at night or at weekends; if so, go to $alt."
-                    } else ""
-                    qaUi = qaUi.copy(asked = q, answer = base + lockNote)
+                    val rule = rules.first { it.hazard == hazard }
+                    // Both languages: the asked one first, then the same pre-checked answer in the other.
+                    fun answerIn(ko: Boolean): String {
+                        val e = hit?.let { if ((it.lang == "ko") == ko) it else qa.counterpart(it) }
+                        val name = if (ko) shelter?.name else shelter?.nameEn?.ifBlank { shelter.name }
+                        val base = e?.let { OfflineQa.fill(it.answer, name, ko) }
+                            ?: if (ko) "${rule.verbKo}. ${rule.forbidKo}." else "${rule.verbEn}. ${rule.forbidEn}."
+                        // An answer that sends people to a school yard at night must carry the locked-gate fallback.
+                        val alt = guidance?.lockWarning?.alternative?.shelter ?: return base
+                        if (name == null || !base.contains(name)) return base
+                        return base + if (ko) " 밤·주말엔 문이 잠겨 있을 수 있어요. 잠겨 있으면 ${alt.name}${OfflineQa.roParticle(alt.name)} 가세요."
+                        else " The gate may be locked at night or at weekends; if so, go to ${alt.nameEn.ifBlank { alt.name }}."
+                    }
+                    qaUi = qaUi.copy(asked = q, askedOther = hit?.let { qa.counterpart(it)?.question },
+                        answer = answerIn(korean), answerOther = answerIn(!korean))
                     g.fieldLog.write("qa", mapOf("hazard" to hazard, "q" to q, "intent" to hit?.intent, "matched" to (hit != null)))
                 }
                 val scope = rememberCoroutineScope()
                 val prepared = remember(fix, hazard, stepFree, planVersion) {
                     fix?.let { f -> plans.lookup(f.lat, f.lon, hazard, stepFree) }?.let { p ->
                         // Plans made from a raw GPS fix carry the fix label; show where it applies instead.
-                        PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치")) "이 근처" else p.placeLabel, p.notesKo, p.backupId?.let { db.byId(it)?.name },
-                            p.meetingPointId?.let { db.byId(it)?.name })
+                        PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치")) "이 근처" else p.placeLabel, p.notesKo,
+                            p.backupId?.let { db.byId(it)?.bilingual }, p.meetingPointId?.let { db.byId(it)?.bilingual }, p.notesEn)
                     }
                 }
 
@@ -151,7 +155,7 @@ class MainActivity : ComponentActivity() {
                     locationGranted = hasLocation()
                 }
                 val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                    if (!granted) qaUi = qaUi.copy(voiceStatus = "마이크 권한이 없어요. 버튼이나 입력으로 물어보세요.")
+                    if (!granted) qaUi = qaUi.copy(voiceStatus = "마이크 권한이 없어요. 버튼이나 입력으로 물어보세요. · No microphone permission. Use the buttons or type.")
                 }
                 LaunchedEffect(Unit) {
                     if (!locationGranted) {
@@ -227,23 +231,23 @@ class MainActivity : ComponentActivity() {
                     onMic = {
                         when {
                             voice.isRecording -> voice.stop()
-                            !online() -> qaUi = qaUi.copy(voiceStatus = "음성 질문은 온라인에서만 돼요. 위의 질문 버튼을 눌러 주세요.")
-                            g.apiKey.get().isBlank() -> qaUi = qaUi.copy(voiceStatus = "이 기기에 API 키가 없어 음성 질문을 쓸 수 없어요. 위의 질문 버튼을 눌러 주세요.")
+                            !online() -> qaUi = qaUi.copy(voiceStatus = "음성 질문은 온라인에서만 돼요. 위의 질문 버튼을 눌러 주세요. · Voice questions need a network. Use the buttons above.")
+                            g.apiKey.get().isBlank() -> qaUi = qaUi.copy(voiceStatus = "이 기기에 API 키가 없어 음성 질문을 쓸 수 없어요. 위의 질문 버튼을 눌러 주세요. · No API key on this phone for voice. Use the buttons above.")
                             checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ->
                                 micPermission.launch(Manifest.permission.RECORD_AUDIO)
                             else -> scope.launch {
-                                qaUi = qaUi.copy(listening = true, voiceStatus = "듣는 중… 다시 누르면 멈춰요 (최대 10초)")
+                                qaUi = qaUi.copy(listening = true, voiceStatus = "듣는 중… 다시 누르면 멈춰요 (최대 10초) · Listening… tap again to stop (max 10 s)")
                                 val heard = runCatching {
                                     withContext(Dispatchers.IO) {
                                         val wav = voice.record()
-                                        qaUi = qaUi.copy(listening = false, voiceStatus = "받아쓰는 중… (Muse Voice Transcribe)")
+                                        qaUi = qaUi.copy(listening = false, voiceStatus = "받아쓰는 중… · Transcribing… (Muse Voice Transcribe)")
                                         voice.transcribe(wav, qa.questions(hazard, "ko").flatMap { it.keywords })
                                     }
                                 }
                                 heard.onSuccess { t ->
-                                    qaUi = qaUi.copy(listening = false, voiceStatus = "들은 말: \"$t\"")
+                                    qaUi = qaUi.copy(listening = false, voiceStatus = "들은 말 Heard: \"$t\"")
                                     if (t.isNotBlank()) askOffline(t)
-                                }.onFailure { qaUi = qaUi.copy(listening = false, voiceStatus = "음성 인식 실패: ${it.message?.take(80)}") }
+                                }.onFailure { qaUi = qaUi.copy(listening = false, voiceStatus = "음성 인식 실패 Voice failed: ${it.message?.take(80)}") }
                             }
                         }
                     },
@@ -253,25 +257,25 @@ class MainActivity : ComponentActivity() {
                         learner.clear()
                         PlaceLearner.simulatedWeek(DEMO_PLACES[0].lat to DEMO_PLACES[0].lon, DEMO_PLACES[2].lat to DEMO_PLACES[2].lon,
                             System.currentTimeMillis()).forEach(learner::record)
-                        refreshLearn("일주일 이동 기록을 넣었어요 (데모).")
+                        refreshLearn("일주일 이동 기록을 넣었어요 (데모). · Added a demo week of movement.")
                     },
                     onLearnNow = {
-                        if (!online()) refreshLearn("오프라인이에요. 계획은 온라인일 때 자동으로 만들어져요.")
+                        if (!online()) refreshLearn("오프라인이에요. 계획은 온라인일 때 자동으로 만들어져요. · Offline. Plans are made automatically when online.")
                         else scope.launch {
-                            refreshLearn("자주 가는 곳마다 재난별 계획을 만드는 중…", running = true)
+                            refreshLearn("자주 가는 곳마다 재난별 계획을 만드는 중… · Making plans for each place and hazard…", running = true)
                             val made = withContext(Dispatchers.IO) {
                                 LearnWorker.prepareMissingPlans(g, Profile(if (withChild) "a 5-year-old child" else "alone", stepFree))
                             }
                             planVersion++
-                            refreshLearn("새 계획 ${made}개 저장 (검증 통과분만)")
+                            refreshLearn("새 계획 ${made}개 저장 (검증 통과분만) · $made new plans saved (validated only)")
                         }
                     },
                     onPrepare = {
                         val f = fix
                         when {
-                            f == null -> prepareUi = PrepareUi(status = "위치가 필요해요.")
-                            !online() -> prepareUi = PrepareUi(status = "오프라인이에요. 계획은 온라인일 때 미리 만들어 두세요.")
-                            g.apiKey.get().isBlank() -> prepareUi = PrepareUi(status = "이 기기에 API 키가 없어요 (scripts/provision_key.sh). 오프라인 안내는 키 없이 동작해요.")
+                            f == null -> prepareUi = PrepareUi(status = "위치가 필요해요. · Location needed.")
+                            !online() -> prepareUi = PrepareUi(status = "오프라인이에요. 계획은 온라인일 때 미리 만들어 두세요. · Offline. Make plans while online.")
+                            g.apiKey.get().isBlank() -> prepareUi = PrepareUi(status = "이 기기에 API 키가 없어요 (scripts/provision_key.sh). 오프라인 안내는 키 없이 동작해요. · No API key on this phone; offline guidance works without it.")
                             else -> scope.launch {
                                 prepareUi = PrepareUi(running = true)
                                 val profile = Profile(if (withChild) "a 5-year-old child" else "alone", stepFree)
@@ -286,10 +290,10 @@ class MainActivity : ComponentActivity() {
                                     onSuccess = { r ->
                                         if (r.plan != null && r.problems.isEmpty()) {
                                             plans.save(r.plan); planVersion++
-                                            prepareUi.copy(running = false, status = "검증 통과 · 저장됨 (도구 ${r.toolLog.size}회)")
-                                        } else prepareUi.copy(running = false, status = "검증 실패 → 저장 안 함: ${r.problems.joinToString()}")
+                                            prepareUi.copy(running = false, status = "검증 통과 · 저장됨 (도구 ${r.toolLog.size}회) · Validated and saved (${r.toolLog.size} tool calls)")
+                                        } else prepareUi.copy(running = false, status = "검증 실패 → 저장 안 함 · Validation failed, not saved: ${r.problems.joinToString()}")
                                     },
-                                    onFailure = { prepareUi.copy(running = false, status = "오류: ${it.message?.take(120)}") },
+                                    onFailure = { prepareUi.copy(running = false, status = "오류 Error: ${it.message?.take(120)}") },
                                 )
                             }
                         }

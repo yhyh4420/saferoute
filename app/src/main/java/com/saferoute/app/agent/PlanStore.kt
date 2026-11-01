@@ -15,7 +15,7 @@ class PlanStore(context: Context) {
             val o = arr.getJSONObject(i)
             Plan(o.getString("place"), o.getDouble("lat"), o.getDouble("lon"), o.getString("hazard"),
                 o.getString("primary"), o.optString("backup").ifBlank { null },
-                o.optString("meeting").ifBlank { null }, o.getString("notes"), o.optBoolean("stepfree", false))
+                o.optString("meeting").ifBlank { null }, o.getString("notes"), o.optString("notes_en").ifBlank { null }, o.optBoolean("stepfree", false))
         }
     }
 
@@ -24,7 +24,7 @@ class PlanStore(context: Context) {
         val arr = JSONArray(kept.map {
             JSONObject().put("place", it.placeLabel).put("lat", it.lat).put("lon", it.lon).put("hazard", it.hazard)
                 .put("primary", it.primaryId).put("backup", it.backupId ?: "").put("meeting", it.meetingPointId ?: "")
-                .put("notes", it.notesKo).put("stepfree", it.stepFree)
+                .put("notes", it.notesKo).put("notes_en", it.notesEn ?: "").put("stepfree", it.stepFree)
         })
         prefs.edit().putString(KEY, arr.toString()).apply()
     }

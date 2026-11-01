@@ -1,5 +1,7 @@
 package com.saferoute.app.alert
 
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -67,6 +69,28 @@ private val HAZARD_COLORS = mapOf("earthquake" to Color(0xFFB3261E), "flood" to 
 private val ME_COLOR = Color(0xFF212121)
 private val ALT_COLOR = Color(0xFFE0A100)
 private val HAZARD_LABELS = mapOf("earthquake" to "지진", "flood" to "홍수")
+/**
+ * The demo-week button wipes the learned history before inserting fake visits: only on emulators,
+ * never on a phone that is learning real places.
+ */
+private val IS_EMULATOR = android.os.Build.HARDWARE in setOf("ranchu", "goldfish") ||
+    android.os.Build.FINGERPRINT.startsWith("generic") || android.os.Build.PRODUCT.contains("sdk")
+private val HAZARD_LABELS_EN = mapOf("earthquake" to "Earthquake", "flood" to "Flood")
+/** English for labels the learner produces (learn/PlaceLearner.kt). */
+private val PLACE_LABELS_EN = mapOf("집 (추정)" to "Home (likely)", "직장·학교 (추정)" to "Work/School (likely)",
+    "자주 가는 곳" to "Frequent place", "지나간 곳" to "Passed by", "이 근처" to "Near here")
+fun placeLabelBi(ko: String) = PLACE_LABELS_EN[ko]?.let { "$ko · $it" } ?: ko
+
+/** Korean with English underneath (every Korean text on this screen is shown in both languages). */
+@Composable
+private fun Bi(ko: String, en: String, size: TextUnit = 14.sp, weight: FontWeight? = null, color: Color = Color.Unspecified,
+               modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(ko, fontSize = size, fontWeight = weight, color = color, lineHeight = size * 1.25f)
+        Text(en, fontSize = size * 0.78f, color = if (color == Color.Unspecified) Color.DarkGray else color.copy(alpha = 0.85f),
+            lineHeight = size * 0.98f)
+    }
+}
 
 @Composable
 fun AlertScreen(
@@ -117,7 +141,12 @@ fun AlertScreen(
                             containerColor = if (selected) Color.White else Color.White.copy(alpha = 0.18f),
                             contentColor = if (selected) accent else Color.White,
                         ),
-                    ) { Text(HAZARD_LABELS[r.hazard] ?: r.hazard, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(HAZARD_LABELS[r.hazard] ?: r.hazard, fontSize = 19.sp, fontWeight = FontWeight.Bold, lineHeight = 21.sp)
+                            Text(HAZARD_LABELS_EN[r.hazard] ?: r.hazard, fontSize = 12.sp, lineHeight = 13.sp)
+                        }
+                    }
                 }
             }
             if (rule != null) {
@@ -125,6 +154,7 @@ fun AlertScreen(
                 Text(rule.verbKo, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp)
                 Text(rule.verbEn, color = Color.White, fontSize = 14.sp)
                 Text("⚠ ${rule.forbidKo}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text("⚠ ${rule.forbidEn}", color = Color.White, fontSize = 13.sp)
             }
         }
 
@@ -135,32 +165,36 @@ fun AlertScreen(
                 prepared?.let { PreparedPlanCard(it, accent) }
                 RouteMap(result.guidance, accent, fix)
                 QaSection(qa, onAsk, onMic, accent)
-                Text("오프라인 계산 %.1f ms · 네트워크 사용 안 함 · 대피소: %s · 행동요령: %s".format(
+                Text("오프라인 계산 Offline compute %.1f ms · 네트워크 사용 안 함 No network · 대피소 Shelters: %s · 행동요령 Guidance: %s".format(
                     result.guidance.computeMs, result.guidance.shelter.source, rule?.source ?: ""),
                     fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 16.dp).testTag("compute_ms"))
             }
             else -> {
-                Message(when (result) {
-                    AlertResult.OutsideArea -> "여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요.\nYou are outside this app's offline map (Seoul). Follow official alerts."
-                    AlertResult.FarFromRoads -> "주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요.\nNo walkable road data nearby."
-                    AlertResult.NoStepFreeRoute -> "계단 없이 갈 수 있는 경로가 없어요. 아래 '준비·설정'에서 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요.\nNo step-free route from here."
+                val (ko, en) = when (result) {
+                    AlertResult.OutsideArea -> "여기는 이 앱의 오프라인 지도(서울) 밖이에요. 재난문자와 현지 안내를 따르세요." to
+                        "You are outside this app's offline map (Seoul). Follow official alerts and local guidance."
+                    AlertResult.FarFromRoads -> "주변에 보행로 데이터가 없어요. 넓은 길 쪽으로 이동하세요." to
+                        "No walkable road data nearby. Move towards a wider street."
+                    AlertResult.NoStepFreeRoute -> "계단 없이 갈 수 있는 경로가 없어요. 아래 '준비·설정'에서 계단 없는 경로를 끄면 가장 가까운 경로를 안내해요." to
+                        "No step-free route from here. Turn off step-free in 'Prepare · Settings' below for the nearest route."
                     else -> when {
-                        fix != null -> "계산 중…"
-                        locationOff -> "위치가 꺼져 있어서 현재 위치를 알 수 없어요."
-                        else -> "위치를 찾는 중…"
+                        fix != null -> "계산 중…" to "Calculating…"
+                        locationOff -> "위치가 꺼져 있어서 현재 위치를 알 수 없어요." to "Location is off, so your position is unknown."
+                        else -> "위치를 찾는 중…" to "Finding your location…"
                     }
-                })
+                }
+                Message(ko, en)
                 if (fix == null && locationOff) {
                     Button(onClick = onTurnOnLocation, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(52.dp)) {
-                        Text("위치 켜기", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("위치 켜기 · Turn on location", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (fix == null && knownPlaces.isNotEmpty()) {
-                    Text("GPS를 기다리지 않고 바로 안내받기 — 지금 여기예요:", fontSize = 15.sp,
+                    Bi("GPS를 기다리지 않고 바로 안내받기 — 지금 여기예요:", "Don't wait for GPS — I'm here now:", 15.sp,
                         modifier = Modifier.padding(horizontal = 16.dp))
                     FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         knownPlaces.forEach { p ->
-                            Button(onClick = { onPlace(p) }, modifier = Modifier.height(52.dp)) { Text(p.label, fontSize = 17.sp) }
+                            Button(onClick = { onPlace(p) }, modifier = Modifier.height(52.dp)) { Text(placeLabelBi(p.label), fontSize = 16.sp) }
                         }
                     }
                 }
@@ -177,7 +211,7 @@ fun AlertScreen(
 private fun ActionRow(accent: Color, onCall119: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onCall119, modifier = Modifier.weight(1f).height(52.dp).testTag("call119")) {
-            Text("📞 119 신고", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text("📞 119 신고 · Call 119", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
@@ -195,21 +229,22 @@ private fun SettingsSection(
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 14.dp).testTag("settings_toggle"),
             verticalAlignment = Alignment.CenterVertically) {
-            Text("준비 · 설정", fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
-            val on = listOfNotNull("계단 없는 경로".takeIf { stepFree }, "아이와 함께".takeIf { withChild })
+            Bi("준비 · 설정", "Prepare · Settings", 17.sp, FontWeight.Bold, modifier = Modifier.weight(1f))
+            val on = listOfNotNull("계단 없음 Step-free".takeIf { stepFree }, "아이와 함께 With child".takeIf { withChild })
             if (on.isNotEmpty()) Text(on.joinToString(" · "), fontSize = 13.sp, color = Color.Gray)
             Text(if (open) "  ▲" else "  ▼", fontSize = 15.sp)
         }
         if (open) {
-            SettingRow("계단 없는 경로 (Step-free, $STEP_FREE_MPS m/s)", stepFree, onStepFree, "stepfree")
-            SettingRow("아이와 함께 (계획에 반영)", withChild, onWithChild, "withchild")
-            SettingRow("현장 테스트 기록 (폰에만 저장 · ${fieldLogLines}줄)", fieldLog, onFieldLog, "fieldlog")
+            SettingRow("계단 없는 경로", "Step-free route ($STEP_FREE_MPS m/s)", stepFree, onStepFree, "stepfree")
+            SettingRow("아이와 함께 (계획에 반영)", "With a child (used in plans)", withChild, onWithChild, "withchild")
+            SettingRow("현장 테스트 기록 (폰에만 저장 · ${fieldLogLines}줄)", "Field-test log (on this phone only · $fieldLogLines lines)",
+                fieldLog, onFieldLog, "fieldlog")
             Spacer(Modifier.height(8.dp))
             PrepareSection(prepare, onPrepare)
             Spacer(Modifier.height(12.dp))
             LearnSection(learn, onSimulateWeek, onLearnNow)
             Spacer(Modifier.height(12.dp))
-            Text("데모 위치 · 지금: ${fix?.label ?: "없음"}", style = MaterialTheme.typography.bodySmall)
+            Text("데모 위치 Demo location · 지금 Now: ${fix?.label ?: "없음 none"}", style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 places.forEach { p ->
                     FilterChip(selected = fix == p, onClick = { onPlace(p) }, label = { Text(p.label.substringBefore(" (")) })
@@ -220,12 +255,12 @@ private fun SettingsSection(
 }
 
 @Composable
-private fun SettingRow(label: String, value: Boolean, onChange: (Boolean) -> Unit, tag: String) {
+private fun SettingRow(label: String, labelEn: String, value: Boolean, onChange: (Boolean) -> Unit, tag: String) {
     Row(Modifier.fillMaxWidth().toggleable(value = value, role = Role.Switch, onValueChange = onChange).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Switch(checked = value, onCheckedChange = null, modifier = Modifier.testTag(tag))
         Spacer(Modifier.size(10.dp))
-        Text(label)
+        Bi(label, labelEn, 15.sp)
     }
 }
 
@@ -238,17 +273,19 @@ data class LearnUi(val visits: Int = 0, val places: List<LearnedPlaceUi> = empty
 @Composable
 private fun LearnSection(ui: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(12.dp).testTag("learn")) {
-        Text("자주 가는 곳 (기기에서만 학습) · 위치 기록 ${ui.visits}건", fontWeight = FontWeight.Bold)
-        if (ui.places.isEmpty()) Text("아직 기록된 장소가 없어요.", fontSize = 13.sp)
-        else Text("학습한 장소 ${ui.total}곳 (자주 가는 곳 먼저, 그다음 최근 지나간 곳)", fontSize = 13.sp)
+        Bi("자주 가는 곳 (기기에서만 학습) · 위치 기록 ${ui.visits}건", "Learned places (on this phone only) · ${ui.visits} samples",
+            15.sp, FontWeight.Bold)
+        if (ui.places.isEmpty()) Bi("아직 기록된 장소가 없어요.", "No places recorded yet.", 13.sp)
+        else Bi("학습한 장소 ${ui.total}곳 (자주 가는 곳 먼저, 그다음 최근 지나간 곳)",
+            "${ui.total} places (regular places first, then recently passed)", 13.sp)
         ui.places.forEach { p ->
-            val marks = p.planned.joinToString("  ") { (h, ok) -> "${HAZARD_LABELS[h]?.substringBefore(" ") ?: h} ${if (ok) "✓" else "–"}" }
-            Text("${p.label} · ${p.days}일 · $marks", fontSize = 14.sp)
+            val marks = p.planned.joinToString("  ") { (h, ok) -> "${HAZARD_LABELS[h] ?: h} ${HAZARD_LABELS_EN[h] ?: ""} ${if (ok) "✓" else "–"}" }
+            Text("${placeLabelBi(p.label)} · ${p.days}일 days · $marks", fontSize = 14.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSimulateWeek, enabled = !ui.running) { Text("일주일 이동 (데모)") }
+            if (IS_EMULATOR) Button(onClick = onSimulateWeek, enabled = !ui.running) { Text("일주일 이동 (데모)\nDemo week", fontSize = 13.sp) }
             Button(onClick = onLearnNow, enabled = !ui.running, modifier = Modifier.testTag("learn_now")) {
-                Text(if (ui.running) "계획 만드는 중…" else "지금 계획 갱신")
+                Text(if (ui.running) "계획 만드는 중…\nPlanning…" else "지금 계획 갱신\nUpdate plans now", fontSize = 13.sp)
             }
         }
         ui.status?.let { Text(it, fontSize = 13.sp) }
@@ -256,9 +293,13 @@ private fun LearnSection(ui: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: ()
 }
 
 data class QaUi(
-    val quick: List<String> = emptyList(),
+    /** Quick questions as (Korean, English). */
+    val quick: List<Pair<String, String>> = emptyList(),
     val asked: String? = null,
     val answer: String? = null,
+    /** The same pre-checked answer in the other language. */
+    val answerOther: String? = null,
+    val askedOther: String? = null,
     val listening: Boolean = false,
     val voiceStatus: String? = null,
 )
@@ -274,22 +315,25 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
         // Answer first: it is what the person is looking for after tapping a question.
         ui.answer?.let {
             Column(Modifier.fillMaxWidth().background(accent.copy(alpha = 0.08f)).padding(12.dp)) {
-                ui.asked?.let { q -> Text("Q. $q", fontSize = 14.sp, color = Color.Gray) }
+                ui.asked?.let { q -> Text("Q. $q" + (ui.askedOther?.let { " · $it" } ?: ""), fontSize = 14.sp, color = Color.Gray) }
                 Text(it, fontSize = 19.sp, color = accent, fontWeight = FontWeight.Medium, modifier = Modifier.testTag("qa_answer"))
+                ui.answerOther?.let { o -> Text(o, fontSize = 15.sp, color = accent.copy(alpha = 0.85f)) }
             }
             Spacer(Modifier.height(8.dp))
         }
-        Text("궁금한 점 (오프라인)", fontWeight = FontWeight.Bold)
+        Bi("궁금한 점 (오프라인)", "Questions (offline)", 16.sp, FontWeight.Bold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ui.quick.forEach { q -> AssistChip(onClick = { onAsk(q) }, label = { Text(q, fontSize = 15.sp) }) }
+            ui.quick.forEach { (q, en) ->
+                AssistChip(onClick = { onAsk(q) }, label = { Bi(q, en, 15.sp, modifier = Modifier.padding(vertical = 4.dp)) })
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true,
-                placeholder = { Text("예: 차 타도 돼요?") }, modifier = Modifier.weight(1f).testTag("qa_input"),
+                placeholder = { Text("예: 차 타도 돼요? / Can I drive?") }, modifier = Modifier.weight(1f).testTag("qa_input"),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { ask() }))
             Spacer(Modifier.size(8.dp))
-            Button(onClick = { ask() }) { Text("묻기") }
+            Button(onClick = { ask() }) { Text("묻기\nAsk", fontSize = 13.sp, lineHeight = 15.sp) }
             Spacer(Modifier.size(4.dp))
             Button(onClick = onMic, modifier = Modifier.testTag("mic")) { Text(if (ui.listening) "■ 멈춤" else "🎤") }
         }
@@ -298,7 +342,8 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
 }
 
 /** Shown on the alert screen when a plan for this place was prepared earlier (offline read). */
-data class PreparedPlanUi(val placeLabel: String, val notesKo: String, val backupName: String?, val meetingName: String?)
+data class PreparedPlanUi(val placeLabel: String, val notesKo: String, val backupName: String?, val meetingName: String?,
+                          val notesEn: String? = null)
 
 data class PrepareUi(val running: Boolean = false, val log: List<String> = emptyList(), val status: String? = null)
 
@@ -306,19 +351,20 @@ data class PrepareUi(val running: Boolean = false, val log: List<String> = empty
 private fun PreparedPlanCard(p: PreparedPlanUi, accent: Color) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).background(Color(0xFFF7F2FA)).padding(12.dp)
         .testTag("prepared_plan")) {
-        Text("미리 준비한 계획 · ${p.placeLabel}", fontWeight = FontWeight.Bold, color = accent)
+        Bi("미리 준비한 계획 · ${placeLabelBi(p.placeLabel)}", "Prepared plan", 15.sp, FontWeight.Bold, accent)
         Text(p.notesKo, fontSize = 16.sp)
-        p.backupName?.let { Text("예비 대피소: $it", fontSize = 14.sp) }
-        p.meetingName?.let { Text("가족 재회 지점: $it", fontSize = 14.sp) }
+        p.notesEn?.let { Text(it, fontSize = 13.sp, color = Color.DarkGray) }
+        p.backupName?.let { Text("예비 대피소 Backup: $it", fontSize = 14.sp) }
+        p.meetingName?.let { Text("가족 재회 지점 Family meeting point: $it", fontSize = 14.sp) }
     }
 }
 
 @Composable
 private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(12.dp)) {
-        Text("평시 준비 (온라인일 때) · Muse Spark 에이전트", fontWeight = FontWeight.Bold)
+        Bi("평시 준비 (온라인일 때) · Muse Spark 에이전트", "Prepare ahead (online) · Muse Spark agent", 15.sp, FontWeight.Bold)
         Button(onClick = onPrepare, enabled = !ui.running, modifier = Modifier.testTag("prepare")) {
-            Text(if (ui.running) "계획 만드는 중…" else "이 장소 계획 만들기")
+            Text(if (ui.running) "계획 만드는 중… · Planning…" else "이 장소 계획 만들기 · Plan for this place")
         }
         ui.status?.let { Text(it, fontSize = 13.sp) }
         ui.log.forEach { Text("· $it", fontSize = 11.sp, color = Color.DarkGray) }
@@ -330,8 +376,10 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         if (g.outsideCity) {
             Column(Modifier.fillMaxWidth().background(Color(0xFFFFF3CD)).padding(12.dp).testTag("outside_city")) {
-                Text("⚠ 서울 밖이에요. 더 가까운 현지 대피소가 있을 수 있어요.", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("재난문자와 현지 안내를 먼저 따르세요. 아래는 가장 가까운 서울 대피소(참고)예요.", fontSize = 14.sp)
+                Bi("⚠ 서울 밖이에요. 더 가까운 현지 대피소가 있을 수 있어요.", "⚠ Outside Seoul. A closer local shelter may exist.",
+                    15.sp, FontWeight.Bold)
+                Bi("재난문자와 현지 안내를 먼저 따르세요. 아래는 가장 가까운 서울 대피소(참고)예요.",
+                    "Follow official alerts and local guidance first. Below is the nearest Seoul shelter (reference).", 14.sp)
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -339,7 +387,7 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
             // With a compass the arrow is relative to where the phone points; without one it is north-up.
             val arrowDeg = g.bearingDeg - (headingDeg ?: 0f)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val spoken = "목적지 방향: ${clockWords(arrowDeg)}, ${g.distanceM} m"
+                val spoken = "목적지 방향: ${clockWords(arrowDeg)}, ${g.distanceM} m. Destination: ${clockWordsEn(arrowDeg)}, ${g.distanceM} m"
                 Canvas(Modifier.size(112.dp).testTag("arrow").semantics { contentDescription = spoken }) {
                     rotate(arrowDeg) {
                         val w = size.width
@@ -351,22 +399,27 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
                         drawPath(path, accent)
                     }
                 }
-                Text(if (headingDeg == null) "북쪽 기준" else "휴대폰 방향", fontSize = 11.sp, color = Color.Gray)
+                Text(if (headingDeg == null) "북쪽 기준\nNorth-up" else "휴대폰 방향\nPhone heading", fontSize = 11.sp,
+                    color = Color.Gray, lineHeight = 13.sp, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.size(14.dp))
             Column(Modifier.weight(1f)) {
                 Text("${g.distanceM} m", fontSize = 40.sp, fontWeight = FontWeight.Black, lineHeight = 44.sp,
                     modifier = Modifier.testTag("distance"))
-                Text("걸어서 약 ${g.walkMinutes}분" + if (stepFree) " · 계단 없이" else "", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Bi("걸어서 약 ${g.walkMinutes}분" + if (stepFree) " · 계단 없이" else "",
+                    "About ${g.walkMinutes} min on foot" + if (stepFree) " · step-free" else "", 18.sp, FontWeight.Bold)
                 Text(g.shelter.name, fontSize = 22.sp, color = accent, fontWeight = FontWeight.Bold, lineHeight = 26.sp,
                     modifier = Modifier.testTag("shelter_name"))
+                if (g.shelter.nameEn.isNotBlank()) Text(g.shelter.nameEn, fontSize = 15.sp, color = accent.copy(alpha = 0.85f),
+                    lineHeight = 18.sp, modifier = Modifier.testTag("shelter_name_en"))
             }
         }
         // Full dataset names are in the footer; here only whether the site is officially designated.
         val official = !g.shelter.source.startsWith("OpenStreetMap")
-        Text(if (official) "✓ 공식 지정 대피소" else "공식 지정 아님 · 공식 데이터가 없는 지역의 공원",
-            fontSize = 13.sp, color = if (official) Color(0xFF2E7D32) else Color(0xFF8A5A00))
-        if (stepFree) Text("계단 없는 경로 기준", fontSize = 12.sp, color = Color.Gray)
+        if (official) Bi("✓ 공식 지정 대피소", "✓ Officially designated shelter", 13.sp, color = Color(0xFF2E7D32))
+        else Bi("공식 지정 아님 · 공식 데이터가 없는 지역의 공원", "Not officially designated · park in an area without official data",
+            13.sp, color = Color(0xFF8A5A00))
+        if (stepFree) Text("계단 없는 경로 기준 · Step-free route", fontSize = 12.sp, color = Color.Gray)
         g.lockWarning?.let { LockWarningCard(it) }
     }
 }
@@ -386,6 +439,12 @@ private fun clockWords(deg: Float): String {
     }
 }
 
+private fun clockWordsEn(deg: Float): String {
+    val d = ((deg % 360) + 360) % 360
+    return listOf("ahead", "ahead right", "right", "behind right", "behind", "behind left", "left", "ahead left")[
+        (((d + 22.5f) % 360) / 45f).toInt().coerceIn(0, 7)]
+}
+
 @Composable
 private fun LockWarningCard(w: LockWarning) {
     Column(
@@ -394,9 +453,14 @@ private fun LockWarningCard(w: LockWarning) {
         Text("⚠ 학교 운동장은 밤·주말에 문이 잠겨 있을 수 있어요", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         Text("School gates may be locked at night and on weekends.", fontSize = 12.sp, color = Color.DarkGray)
         val alt = w.alternative
-        if (alt == null) Text("주변에 학교가 아닌 대피 장소가 없어요. 잠겨 있으면 주변 넓은 공터로 가세요.", fontSize = 14.sp)
-        else Text("잠겨 있으면 → ${alt.shelter.name} · ${alt.distanceM} m · 도보 약 ${alt.walkMinutes}분",
-            fontSize = 15.sp, modifier = Modifier.testTag("lock_alternative"))
+        if (alt == null) Bi("주변에 학교가 아닌 대피 장소가 없어요. 잠겨 있으면 주변 넓은 공터로 가세요.",
+            "No non-school shelter nearby. If locked, go to the nearest open space.", 14.sp)
+        else {
+            Text("잠겨 있으면 → ${alt.shelter.name} · ${alt.distanceM} m · 도보 약 ${alt.walkMinutes}분",
+                fontSize = 15.sp, modifier = Modifier.testTag("lock_alternative"))
+            Text("If locked → ${alt.shelter.nameEn.ifBlank { alt.shelter.name }} · ${alt.distanceM} m · about ${alt.walkMinutes} min",
+                fontSize = 12.sp, color = Color.DarkGray)
+        }
     }
 }
 
@@ -434,11 +498,11 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
         }
         // Legend dots use the exact colours drawn on the map (the destination takes the hazard colour).
         val legend = buildAnnotatedString {
-            append("오프라인 지도 · 북쪽 위  ")
+            append("오프라인 지도 Offline map · 북쪽 위 North up  ")
             fun dot(c: Color, label: String) { withStyle(SpanStyle(color = c)) { append("●") }; append(" $label  ") }
-            dot(ME_COLOR, "나"); dot(accent, "목적지")
-            withStyle(SpanStyle(color = accent.copy(alpha = 0.6f))) { append("○") }; append(" 대피소  ")
-            if (alt != null) dot(ALT_COLOR, "잠김 시 대안")
+            dot(ME_COLOR, "나 You"); dot(accent, "목적지 Destination")
+            withStyle(SpanStyle(color = accent.copy(alpha = 0.6f))) { append("○") }; append(" 대피소 Shelters  ")
+            if (alt != null) dot(ALT_COLOR, "잠김 시 대안 If locked")
         }
         Text(legend, fontSize = 11.sp, color = Color.DarkGray,
             modifier = Modifier.align(Alignment.TopStart).background(Color(0xCCFFFFFF)).padding(horizontal = 6.dp, vertical = 2.dp))
@@ -446,6 +510,6 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
 }
 
 @Composable
-private fun Message(text: String) {
-    Text(text, fontSize = 18.sp, modifier = Modifier.padding(24.dp))
+private fun Message(ko: String, en: String) {
+    Bi(ko, en, 18.sp, modifier = Modifier.padding(24.dp))
 }

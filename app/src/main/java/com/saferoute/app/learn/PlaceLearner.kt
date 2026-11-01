@@ -26,7 +26,19 @@ data class FrequentPlace(
 class PlaceLearner(context: Context) {
     private val prefs = context.getSharedPreferences("visits", Context.MODE_PRIVATE)
 
+    private var lastCell: String? = null
+    private var lastTimeMs = 0L
+
+    /**
+     * Records a sample when the user enters a new cell, or every [SAME_CELL_MS] while staying.
+     * GPS fixes arrive every few seconds; storing each would push out hours-old places (MAX_VISITS)
+     * before plans were prepared for them, and rewrite the whole history every fix.
+     */
     fun record(v: Visit) {
+        val cell = cellKey(v.lat, v.lon)
+        if (cell == lastCell && kotlin.math.abs(v.timeMs - lastTimeMs) < SAME_CELL_MS) return
+        lastCell = cell
+        lastTimeMs = v.timeMs
         val arr = JSONArray(prefs.getString(KEY, "[]"))
         arr.put(JSONObject().put("lat", v.lat).put("lon", v.lon).put("t", v.timeMs))
         // Keep the last MAX_VISITS samples; older history is not needed to find regular places.
@@ -40,7 +52,10 @@ class PlaceLearner(context: Context) {
         return (0 until arr.length()).map { arr.getJSONObject(it).let { o -> Visit(o.getDouble("lat"), o.getDouble("lon"), o.getLong("t")) } }
     }
 
-    fun clear() = prefs.edit().remove(KEY).apply()
+    fun clear() {
+        lastCell = null
+        prefs.edit().remove(KEY).apply()
+    }
 
     fun places(): List<FrequentPlace> = visits()
         .groupBy { cellKey(it.lat, it.lon) }
@@ -71,6 +86,7 @@ class PlaceLearner(context: Context) {
         private const val CELL_DEG = 0.001 // ~110 m
         const val REGULAR_DAYS = 3
         private const val MAX_VISITS = 2_000
+        private const val SAME_CELL_MS = 5 * 60_000L
         private const val HOUR_MS = 3_600_000L
         private const val DAY_MS = 86_400_000L
 

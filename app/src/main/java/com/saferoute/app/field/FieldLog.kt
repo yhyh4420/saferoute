@@ -20,8 +20,17 @@ class FieldLog(context: Context) {
         if (!enabled) return
         val o = JSONObject().put("t", System.currentTimeMillis()).put("event", event)
         fields.forEach { (k, v) -> o.put(k, v ?: JSONObject.NULL) }
-        synchronized(this) { file.appendText(o.toString() + "\n") }
+        synchronized(this) {
+            file.appendText(o.toString() + "\n")
+            count = lines() + 1
+        }
     }
 
-    fun lines(): Int = if (file.exists()) file.useLines { it.count() } else 0
+    // Counted once, then kept in memory: re-reading a day-long log on every GPS fix would drain the battery.
+    @Volatile private var count = -1
+
+    fun lines(): Int {
+        if (count < 0) count = if (file.exists()) file.useLines { it.count() } else 0
+        return count
+    }
 }

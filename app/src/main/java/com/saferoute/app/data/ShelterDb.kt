@@ -73,6 +73,29 @@ class ShelterDb(context: Context, assetName: String) {
             }
         }
 
+    /** The city's boundary ring (lat, lon), or empty for packs built before it was stored. */
+    val area: List<Pair<Double, Double>> by lazy {
+        runCatching {
+            db.rawQuery("SELECT lat, lon FROM area ORDER BY seq", null).use { c ->
+                buildList { while (c.moveToNext()) add(c.getDouble(0) to c.getDouble(1)) }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Ray casting; true when there is no stored boundary. */
+    fun inArea(lat: Double, lon: Double): Boolean {
+        val ring = area
+        if (ring.size < 3) return true
+        var inside = false
+        var j = ring.lastIndex
+        for (i in ring.indices) {
+            val (yi, xi) = ring[i]; val (yj, xj) = ring[j]
+            if ((yi > lat) != (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside
+            j = i
+        }
+        return inside
+    }
+
     fun byId(id: String): Shelter? = db.rawQuery("SELECT idx FROM shelter WHERE id = ?", arrayOf(id))
         .use { c -> if (c.moveToFirst()) shelter(c.getInt(0)) else null }
 

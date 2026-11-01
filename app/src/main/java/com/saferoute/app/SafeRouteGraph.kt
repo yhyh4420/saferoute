@@ -29,6 +29,7 @@ class SafeRouteGraph private constructor(ctx: Context) {
     val learner by lazy { PlaceLearner(ctx) }
     val qa by lazy { OfflineQa(db.db) }
     val apiKey by lazy { ApiKeyStore(ctx) }
+    val fieldLog by lazy { com.saferoute.app.field.FieldLog(ctx) }
     val agent by lazy { PlanAgent(MetaApiClient(apiKey::get), engine, db) }
 
     companion object {

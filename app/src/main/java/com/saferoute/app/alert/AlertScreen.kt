@@ -97,6 +97,9 @@ fun AlertScreen(
     /** Location is off system-wide (or not permitted): searching would never end. */
     locationOff: Boolean = false,
     onTurnOnLocation: () -> Unit = {},
+    fieldLog: Boolean = false,
+    fieldLogLines: Int = 0,
+    onFieldLog: (Boolean) -> Unit = {},
 ) {
     val rule = rules.firstOrNull { it.hazard == hazard }
     val accent = HAZARD_COLORS[hazard] ?: Color.DarkGray
@@ -166,7 +169,7 @@ fun AlertScreen(
         }
 
         SettingsSection(stepFree, onStepFree, withChild, onWithChild, fix, places, onPlace, prepare, onPrepare,
-            learn, onSimulateWeek, onLearnNow)
+            learn, onSimulateWeek, onLearnNow, fieldLog, fieldLogLines, onFieldLog)
     }
 }
 
@@ -185,6 +188,7 @@ private fun SettingsSection(
     stepFree: Boolean, onStepFree: (Boolean) -> Unit, withChild: Boolean, onWithChild: (Boolean) -> Unit,
     fix: Fix?, places: List<Fix>, onPlace: (Fix) -> Unit, prepare: PrepareUi, onPrepare: () -> Unit,
     learn: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: () -> Unit,
+    fieldLog: Boolean, fieldLogLines: Int, onFieldLog: (Boolean) -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
@@ -199,6 +203,7 @@ private fun SettingsSection(
         if (open) {
             SettingRow("계단 없는 경로 (Step-free, $STEP_FREE_MPS m/s)", stepFree, onStepFree, "stepfree")
             SettingRow("아이와 함께 (계획에 반영)", withChild, onWithChild, "withchild")
+            SettingRow("현장 테스트 기록 (폰에만 저장 · ${fieldLogLines}줄)", fieldLog, onFieldLog, "fieldlog")
             Spacer(Modifier.height(8.dp))
             PrepareSection(prepare, onPrepare)
             Spacer(Modifier.height(12.dp))
@@ -321,6 +326,13 @@ private fun PrepareSection(ui: PrepareUi, onPrepare: () -> Unit) {
 @Composable
 private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFree: Boolean) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        if (g.outsideCity) {
+            Column(Modifier.fillMaxWidth().background(Color(0xFFFFF3CD)).padding(12.dp).testTag("outside_city")) {
+                Text("⚠ 서울 밖이에요. 더 가까운 현지 대피소가 있을 수 있어요.", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("재난문자와 현지 안내를 먼저 따르세요. 아래는 가장 가까운 서울 대피소(참고)예요.", fontSize = 14.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             // With a compass the arrow is relative to where the phone points; without one it is north-up.
             val arrowDeg = g.bearingDeg - (headingDeg ?: 0f)

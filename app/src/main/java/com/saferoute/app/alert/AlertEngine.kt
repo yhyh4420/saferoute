@@ -37,6 +37,8 @@ data class Guidance(
     /** Set when the destination is a school yard and it is night or a weekend. */
     val lockWarning: LockWarning? = null,
     val map: MapData? = null,
+    /** Outside the pack's city: closer local shelters that the pack does not know may exist. */
+    val outsideCity: Boolean = false,
 )
 
 data class LockWarning(val alternative: Alternative?)
@@ -76,7 +78,8 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
         return AlertResult.Ok(
             Guidance(shelter, totalM.roundToInt(), minutes, bearingAlong(fix, points), points, snapM, ms, lock,
                 mapAround(points + (fix.lat to fix.lon) + (shelter.lat to shelter.lon) +
-                    listOfNotNull(lock?.alternative?.shelter?.let { it.lat to it.lon }), hazard))
+                    listOfNotNull(lock?.alternative?.shelter?.let { it.lat to it.lon }), hazard),
+                outsideCity = !db.inArea(fix.lat, fix.lon))
         )
     }
 

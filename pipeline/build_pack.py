@@ -33,6 +33,22 @@ CITIES = {
 }
 
 
+def write_area(db_path: Path, place: str) -> dict:
+    """Store the city's administrative boundary (simplified) so the app can tell people near the edge
+    that closer local shelters outside the pack may exist."""
+    import osmnx as ox
+
+    geom = ox.geocode_to_gdf(place).geometry.iloc[0].simplify(0.0005)
+    polys = list(geom.geoms) if geom.geom_type == "MultiPolygon" else [geom]
+    outer = max(polys, key=lambda p: p.area).exterior.coords
+    con = sqlite3.connect(db_path)
+    con.execute("CREATE TABLE area (seq INTEGER PRIMARY KEY, lat REAL, lon REAL)")
+    con.executemany("INSERT INTO area VALUES (?, ?, ?)", [(i, la, lo) for i, (lo, la) in enumerate(outer)])
+    con.commit()
+    con.close()
+    return {"area_points": len(outer)}
+
+
 def write_qa(db_path: Path) -> dict:
     """Add pre-generated, auto-checked answers (pipeline/gen_answers.py) to the pack's sqlite."""
     src = OUT / "qa_answers.json"
@@ -77,6 +93,7 @@ def main() -> None:
     oracle.write_pack(bin_path, g, trees, {"city": args.city, "shelters": len(shelters)})
     write_pack(shelters, db_path, hazards)
     qa = write_qa(db_path)
+    qa.update(write_area(db_path, city["place"]))
     report = {
         "city": args.city,
         "nodes": len(g.node_ids),

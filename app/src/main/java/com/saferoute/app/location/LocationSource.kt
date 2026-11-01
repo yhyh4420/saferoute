@@ -14,7 +14,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-data class Fix(val lat: Double, val lon: Double, val label: String, val accuracyM: Float? = null)
+data class Fix(val lat: Double, val lon: Double, val label: String, val accuracyM: Float? = null, val timeMs: Long? = null)
 
 /** Fixed points for demos and the emulator, where there is no real GPS. */
 val DEMO_PLACES = listOf(
@@ -52,7 +52,7 @@ class LocationSource(context: Context) {
         awaitClose { lm.removeUpdates(listener) }
     }
 
-    private fun Location.toFix(label: String) = Fix(latitude, longitude, label, if (hasAccuracy()) accuracy else null)
+    private fun Location.toFix(label: String) = Fix(latitude, longitude, label, if (hasAccuracy()) accuracy else null, time)
 
     private companion object {
         val PROVIDERS = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)

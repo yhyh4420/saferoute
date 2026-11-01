@@ -94,6 +94,8 @@ class MainActivity : ComponentActivity() {
                 var heading by remember { mutableStateOf<Float?>(null) }
                 val rules = remember { db.rules() }
                 var withChild by remember { mutableStateOf(prefs.getBoolean("withchild", false)) }
+                var fieldLogOn by remember { mutableStateOf(g.fieldLog.enabled) }
+                var fieldLogLines by remember { mutableStateOf(g.fieldLog.lines()) }
                 var prepareUi by remember { mutableStateOf(PrepareUi()) }
                 var qaUi by remember(hazard) {
                     mutableStateOf(QaUi(quick = qa.questions(hazard, "ko").map { it.question }))
@@ -127,6 +129,7 @@ class MainActivity : ComponentActivity() {
                         else " The gate may be locked at night or at weekends; if so, go to $alt."
                     } else ""
                     qaUi = qaUi.copy(asked = q, answer = base + lockNote)
+                    g.fieldLog.write("qa", mapOf("hazard" to hazard, "q" to q, "intent" to hit?.intent, "matched" to (hit != null)))
                 }
                 val scope = rememberCoroutineScope()
                 val prepared = remember(fix, hazard, stepFree, planVersion) {
@@ -179,6 +182,16 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(fix, hazard, stepFree, minute) {
                     val f = fix ?: return@LaunchedEffect
                     result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree, now()) }
+                    val ok = (result as? AlertResult.Ok)?.guidance
+                    g.fieldLog.write("guide", mapOf(
+                        "hazard" to hazard, "stepfree" to stepFree, "source" to f.label, "lat" to f.lat, "lon" to f.lon,
+                        "acc_m" to f.accuracyM, "fix_age_s" to f.timeMs?.let { (System.currentTimeMillis() - it) / 1000 },
+                        "result" to (result?.let { it::class.simpleName }), "dist_m" to ok?.distanceM, "walk_min" to ok?.walkMinutes,
+                        "shelter" to ok?.shelter?.id, "snap_m" to ok?.snapM?.toInt(), "compute_ms" to ok?.computeMs,
+                        "heading" to (heading != null), "outside_city" to ok?.outsideCity, "lock" to (ok?.lockWarning != null),
+                        "online" to online(),
+                    ))
+                    fieldLogLines = g.fieldLog.lines()
                 }
 
                 AlertScreen(
@@ -200,6 +213,9 @@ class MainActivity : ComponentActivity() {
                     onWithChild = { withChild = it; prefs.edit().putBoolean("withchild", it).apply() },
                     onCall119 = { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))) },
                     locationOff = locationOff,
+                    fieldLog = fieldLogOn,
+                    fieldLogLines = fieldLogLines,
+                    onFieldLog = { g.fieldLog.enabled = it; fieldLogOn = it },
                     onTurnOnLocation = {
                         if (!locationGranted) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                         else startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))

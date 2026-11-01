@@ -16,12 +16,14 @@ import kotlinx.coroutines.flow.callbackFlow
 
 data class Fix(val lat: Double, val lon: Double, val label: String, val accuracyM: Float? = null, val timeMs: Long? = null)
 
+const val LAST_KNOWN = "마지막 위치 Last known"
+
 /** Fixed points for demos and the emulator, where there is no real GPS. */
 val DEMO_PLACES = listOf(
-    Fix(37.5172, 126.8946, "문래동 (demo)"),
-    Fix(37.4979, 127.0276, "강남역 (demo)"),
-    Fix(37.5259, 126.9244, "여의도 (demo)"),
-    Fix(37.5720, 126.9769, "광화문 (demo)"),
+    Fix(37.5172, 126.8946, "문래동 Mullae-dong (demo)"),
+    Fix(37.4979, 127.0276, "강남역 Gangnam Stn (demo)"),
+    Fix(37.5259, 126.9244, "여의도 Yeouido (demo)"),
+    Fix(37.5720, 126.9769, "광화문 Gwanghwamun (demo)"),
 )
 
 /**
@@ -40,7 +42,7 @@ class LocationSource(context: Context) {
     fun lastKnown(): Fix? = PROVIDERS
         .mapNotNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }
         .maxByOrNull { it.time }
-        ?.toFix("마지막 위치")
+        ?.toFix(LAST_KNOWN)
 
     @SuppressLint("MissingPermission")
     fun updates(): Flow<Fix> = callbackFlow {

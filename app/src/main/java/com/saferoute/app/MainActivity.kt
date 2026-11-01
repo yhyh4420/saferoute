@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
                 val prepared = remember(fix, hazard, stepFree, planVersion) {
                     fix?.let { f -> plans.lookup(f.lat, f.lon, hazard, stepFree) }?.let { p ->
                         // Plans made from a raw GPS fix carry the fix label; show where it applies instead.
-                        PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치")) "이 근처" else p.placeLabel, p.notesKo,
+                        PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치", com.saferoute.app.location.LAST_KNOWN)) "이 근처" else p.placeLabel, p.notesKo,
                             p.backupId?.let { db.byId(it)?.bilingual }, p.meetingPointId?.let { db.byId(it)?.bilingual }, p.notesEn)
                     }
                 }

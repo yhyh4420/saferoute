@@ -7,13 +7,20 @@ import org.json.JSONObject
 
 data class Visit(val lat: Double, val lon: Double, val timeMs: Long)
 
-data class FrequentPlace(val key: String, val lat: Double, val lon: Double, val days: Int, val hours: Int, val label: String)
+data class FrequentPlace(
+    val key: String, val lat: Double, val lon: Double, val days: Int, val hours: Int, val label: String,
+    val lastSeenMs: Long = 0,
+) {
+    /** Seen on [PlaceLearner.REGULAR_DAYS]+ days: home/work/school, offered as a one-tap start point. */
+    val regular: Boolean get() = days >= PlaceLearner.REGULAR_DAYS
+}
 
 /**
  * Learns the user's regular places from coarse location samples, on the device only.
  *
- * Samples are bucketed into ~110 m cells; a cell becomes a regular place once it was seen on
- * [MIN_DAYS] different days. This is the "know the shelters around home, work and school in
+ * Samples are bucketed into ~110 m cells. Every visited cell is learned (hackathon setting: plans are
+ * prepared for places passed through, not only regular ones); a cell seen on [REGULAR_DAYS]+ days
+ * is a regular place (home, work, school). This is the "know the shelters around home, work and school in
  * advance" step that Korean guidance asks people to do by hand (VALIDATION V5, V10).
  */
 class PlaceLearner(context: Context) {
@@ -39,11 +46,12 @@ class PlaceLearner(context: Context) {
         .groupBy { cellKey(it.lat, it.lon) }
         .mapNotNull { (key, vs) ->
             val days = vs.map { it.timeMs / DAY_MS }.toSet().size
-            if (days < MIN_DAYS) return@mapNotNull null
             val hours = vs.map { ((it.timeMs / HOUR_MS) % 24).toInt() }
-            FrequentPlace(key, vs.map { it.lat }.average(), vs.map { it.lon }.average(), days, hours.toSet().size, label(hours))
+            FrequentPlace(key, vs.map { it.lat }.average(), vs.map { it.lon }.average(), days, hours.toSet().size,
+                if (days >= REGULAR_DAYS) label(hours) else "지나간 곳", vs.maxOf { it.timeMs })
         }
-        .sortedByDescending { it.days }
+        // Regular places first (most days), then places passed through, most recent first.
+        .sortedWith(compareByDescending<FrequentPlace> { it.regular }.thenByDescending { if (it.regular) it.days.toLong() else it.lastSeenMs })
 
     /** "집" if mostly seen at night, "직장·학교" if mostly on weekday daytime, else "자주 가는 곳". */
     private fun label(hours: List<Int>): String {
@@ -61,7 +69,7 @@ class PlaceLearner(context: Context) {
     companion object {
         private const val KEY = "visits_v1"
         private const val CELL_DEG = 0.001 // ~110 m
-        private const val MIN_DAYS = 3
+        const val REGULAR_DAYS = 3
         private const val MAX_VISITS = 2_000
         private const val HOUR_MS = 3_600_000L
         private const val DAY_MS = 86_400_000L

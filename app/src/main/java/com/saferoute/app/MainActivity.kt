@@ -103,9 +103,12 @@ class MainActivity : ComponentActivity() {
                 var planVersion by remember { mutableStateOf(0) }
                 var learnUi by remember { mutableStateOf(LearnUi()) }
                 fun refreshLearn(status: String? = learnUi.status, running: Boolean = false) {
+                    val all = learner.places()
                     learnUi = LearnUi(
                         visits = learner.visits().size,
-                        places = learner.places().map { p ->
+                        total = all.size,
+                        // Places passed through can number hundreds: show the first few only.
+                        places = all.take(6).map { p ->
                             LearnedPlaceUi(p.label, p.days, rules.map { r -> r.hazard to (plans.lookup(p.lat, p.lon, r.hazard, stepFree) != null) })
                         },
                         running = running,
@@ -220,7 +223,7 @@ class MainActivity : ComponentActivity() {
                         if (!locationGranted) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                         else startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                     },
-                    knownPlaces = remember(learnUi) { learner.places().map { Fix(it.lat, it.lon, it.label) } },
+                    knownPlaces = remember(learnUi) { learner.places().filter { it.regular }.take(3).map { Fix(it.lat, it.lon, it.label) } },
                     onMic = {
                         when {
                             voice.isRecording -> voice.stop()

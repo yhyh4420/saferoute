@@ -231,14 +231,16 @@ private fun SettingRow(label: String, value: Boolean, onChange: (Boolean) -> Uni
 
 data class LearnedPlaceUi(val label: String, val days: Int, val planned: List<Pair<String, Boolean>>)
 
-data class LearnUi(val visits: Int = 0, val places: List<LearnedPlaceUi> = emptyList(), val running: Boolean = false, val status: String? = null)
+data class LearnUi(val visits: Int = 0, val places: List<LearnedPlaceUi> = emptyList(), val running: Boolean = false, val status: String? = null,
+                   val total: Int = 0)
 
 /** Regular places learned on the device and whether each hazard already has a prepared plan. */
 @Composable
 private fun LearnSection(ui: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(Color(0xFFF2F2F2)).padding(12.dp).testTag("learn")) {
         Text("자주 가는 곳 (기기에서만 학습) · 위치 기록 ${ui.visits}건", fontWeight = FontWeight.Bold)
-        if (ui.places.isEmpty()) Text("아직 3일 이상 머문 곳이 없어요.", fontSize = 13.sp)
+        if (ui.places.isEmpty()) Text("아직 기록된 장소가 없어요.", fontSize = 13.sp)
+        else Text("학습한 장소 ${ui.total}곳 (자주 가는 곳 먼저, 그다음 최근 지나간 곳)", fontSize = 13.sp)
         ui.places.forEach { p ->
             val marks = p.planned.joinToString("  ") { (h, ok) -> "${HAZARD_LABELS[h]?.substringBefore(" ") ?: h} ${if (ok) "✓" else "–"}" }
             Text("${p.label} · ${p.days}일 · $marks", fontSize = 14.sp)

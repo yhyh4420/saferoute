@@ -32,17 +32,27 @@ class LearnWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         private const val NAME = "saferoute-learn"
 
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<LearnWorker>(1, TimeUnit.HOURS)
+            // 15 min is WorkManager's minimum: with the app closed this is how often a place is sampled.
+            val request = PeriodicWorkRequestBuilder<LearnWorker>(15, TimeUnit.MINUTES)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
         }
 
-        /** Plans every (regular place × hazard) that has none yet. Returns how many were saved. */
+        /** Cost guard: places passed through can be many; at most this many new places per run (×2 hazards). */
+        private const val MAX_NEW_PLACES_PER_RUN = 5
+
+        /** Plans (place × hazard) without a plan yet, regular places first, then the most recently passed. */
         fun prepareMissingPlans(g: SafeRouteGraph, profile: Profile, onTool: (String) -> Unit = {}): Int {
             var saved = 0
-            for (place in g.learner.places()) {
-                for (hazard in g.db.rules().map { it.hazard }) {
+            val hazards = g.db.rules().map { it.hazard }
+            val todo = g.learner.places()
+                // Outside the pack's city a plan would point at far-away shelters: skip (and save the API call).
+                .filter { p -> g.db.inArea(p.lat, p.lon) }
+                .filter { p -> hazards.any { g.plans.lookup(p.lat, p.lon, it, profile.stepFree) == null } }
+                .take(MAX_NEW_PLACES_PER_RUN)
+            for (place in todo) {
+                for (hazard in hazards) {
                     if (g.plans.lookup(place.lat, place.lon, hazard, profile.stepFree) != null) continue
                     val run = runCatching { g.agent.run(Fix(place.lat, place.lon, place.label), hazard, profile, onTool) }.getOrNull()
                     if (run?.plan != null && run.problems.isEmpty()) { g.plans.save(run.plan); saved++ }

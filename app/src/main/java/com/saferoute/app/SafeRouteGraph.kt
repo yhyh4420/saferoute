@@ -23,7 +23,9 @@ class SafeRouteGraph private constructor(ctx: Context) {
         }
     }
     val db by lazy { ShelterDb(ctx, "pack_seoul.sqlite") }
-    val engine by lazy { AlertEngine(pack, db) }
+    val terrain by lazy { com.saferoute.app.candidates.Terrain.open(ctx.assets, "terrain_seoul.bin") }
+    val candidates by lazy { com.saferoute.app.candidates.CandidateFinder(ctx, terrain) }
+    val engine by lazy { AlertEngine(pack, db, candidates) }
     val location by lazy { LocationSource(ctx) }
     val plans by lazy { PlanStore(ctx) }
     val learner by lazy { PlaceLearner(ctx) }

@@ -110,16 +110,24 @@ def seoul_eq_outdoor(rows: list[dict] | None = None) -> tuple[list[Shelter], dic
     return shelters, report
 
 
-def mark_flood_trace(g, rows: list[dict] | None = None) -> dict:
-    """Set g.flood_trace for walking edges whose midpoint lies in a Seoul 침수흔적도 polygon."""
+def seoul_flood_polygons(rows: list[dict] | None = None) -> list:
+    """Seoul 침수흔적도 polygons in WGS84 (lon, lat)."""
     import numpy as np
     import shapely
     from shapely.ops import transform
 
     rows = rows if rows is not None else json.loads(FLOOD_TRACE_JSON.read_text())
     to_wgs = np.vectorize(lambda x, y: web_mercator_to_wgs84(x, y)[::-1])
-    polys = [transform(lambda x, y: to_wgs(x, y), shapely.from_wkt(r["GEOM"]))
-             for r in rows if str(r.get("STDG_CTPV_CD")) == SEOUL_CTPV]
+    return [transform(lambda x, y: to_wgs(x, y), shapely.from_wkt(r["GEOM"]))
+            for r in rows if str(r.get("STDG_CTPV_CD")) == SEOUL_CTPV]
+
+
+def mark_flood_trace(g, rows: list[dict] | None = None) -> dict:
+    """Set g.flood_trace for walking edges whose midpoint lies in a Seoul 침수흔적도 polygon."""
+    import numpy as np
+    import shapely
+
+    polys = seoul_flood_polygons(rows)
     tree = shapely.STRtree(polys)
     mid = shapely.points((g.lon[g.u] + g.lon[g.v]) / 2, (g.lat[g.u] + g.lat[g.v]) / 2)
     hit, _ = tree.query(mid, predicate="within")

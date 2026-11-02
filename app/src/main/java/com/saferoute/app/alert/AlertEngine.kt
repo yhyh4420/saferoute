@@ -39,9 +39,15 @@ data class Guidance(
     val map: MapData? = null,
     /** Outside the pack's city: closer local shelters that the pack does not know may exist. */
     val outsideCity: Boolean = false,
+    /** Nearest place that meets the official guidance but is not designated (pipeline/manual_sites.py). */
+    val manual: Alternative? = null,
+    val marks: List<MapMark> = emptyList(),
 )
 
 data class LockWarning(val alternative: Alternative?)
+
+/** Extra places to show on the map (prepared plan's backup shelter and family meeting point). */
+data class MapMark(val lat: Double, val lon: Double, val kind: String)
 
 /** Offline base map around the route, drawn from the pack itself. */
 class MapData(
@@ -59,9 +65,16 @@ sealed interface AlertResult {
 }
 
 /** Offline guidance: nearest node -> follow the hazard's pre-computed tree. No network, no LLM. */
-class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
+class AlertEngine(
+    private val pack: RoutePack,
+    private val db: ShelterDb,
+    private val candidates: com.saferoute.app.candidates.CandidateFinder? = null,
+) {
 
-    fun guide(fix: Fix, hazard: String, stepFree: Boolean, now: LocalDateTime = LocalDateTime.now()): AlertResult {
+    fun guide(
+        fix: Fix, hazard: String, stepFree: Boolean, now: LocalDateTime = LocalDateTime.now(),
+        marks: List<MapMark> = emptyList(),
+    ): AlertResult {
         val t0 = SystemClock.elapsedRealtimeNanos()
         if (!pack.covers(fix.lat, fix.lon)) return AlertResult.OutsideArea
         val (node, snapM) = pack.nearestNode(fix.lat, fix.lon) ?: return AlertResult.FarFromRoads
@@ -74,12 +87,22 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
         val minutes = (totalM / (if (stepFree) STEP_FREE_MPS else WALK_MPS) / 60).roundToInt().coerceAtLeast(1)
         val lock = if (shelter.mayLock && gatesMayBeClosed(now)) LockWarning(alternative(node, snapM, hazard, stepFree)) else null
         val ms = (SystemClock.elapsedRealtimeNanos() - t0) / 1e6
+        // Guidance-matching place found earlier around the user's own places (background, CandidateFinder).
+        val manual = candidates?.nearest(pack, node, snapM, fix.lat, fix.lon, hazard)?.let { n ->
+            val c = n.candidate
+            Alternative(Shelter(-1, c.id, c.name, c.lat, c.lon, "manual_$hazard", "",
+                "매뉴얼 기준 후보 (OpenStreetMap · 공식 지정 아님)", nameEn = c.nameEn, noteKo = c.noteKo, noteEn = c.noteEn),
+                n.walkM, (n.walkM / (if (stepFree) STEP_FREE_MPS else WALK_MPS) / 60).roundToInt().coerceAtLeast(1))
+        }
         Log.i(TAG, "alert_compute_ms=%.2f hazard=%s profile=%s nodes=%d".format(ms, hazard, profile, route.nodes.size))
         return AlertResult.Ok(
             Guidance(shelter, totalM.roundToInt(), minutes, bearingAlong(fix, points), points, snapM, ms, lock,
                 mapAround(points + (fix.lat to fix.lon) + (shelter.lat to shelter.lon) +
-                    listOfNotNull(lock?.alternative?.shelter?.let { it.lat to it.lon }), hazard),
-                outsideCity = !db.inArea(fix.lat, fix.lon))
+                    listOfNotNull(lock?.alternative?.shelter?.let { it.lat to it.lon }, manual?.shelter?.let { it.lat to it.lon }) +
+                    marks.map { it.lat to it.lon }, hazard),
+                outsideCity = !db.inArea(fix.lat, fix.lon),
+                manual = manual,
+                marks = marks)
         )
     }
 
@@ -95,8 +118,11 @@ class AlertEngine(private val pack: RoutePack, private val db: ShelterDb) {
         return MapData(box[0], box[1], box[2], box[3], streets, db.suitableIn(hazard, box[0], box[1], box[2], box[3]))
     }
 
-    private fun alternative(node: Int, snapM: Double, hazard: String, stepFree: Boolean): Alternative? {
-        val route = pack.route(node, RoutePack.TreeKey(hazard, if (stepFree) "unlocked_stepfree" else "unlocked")) ?: return null
+    private fun alternative(node: Int, snapM: Double, hazard: String, stepFree: Boolean): Alternative? =
+        treeAlternative(node, snapM, hazard, if (stepFree) "unlocked_stepfree" else "unlocked", stepFree)
+
+    private fun treeAlternative(node: Int, snapM: Double, hazard: String, profile: String, stepFree: Boolean): Alternative? {
+        val route = pack.route(node, RoutePack.TreeKey(hazard, profile)) ?: return null
         val shelter = db.shelter(route.shelterIdx) ?: return null
         val totalM = route.distanceM + snapM
         val minutes = (totalM / (if (stepFree) STEP_FREE_MPS else WALK_MPS) / 60).roundToInt().coerceAtLeast(1)

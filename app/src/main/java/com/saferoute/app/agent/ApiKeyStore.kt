@@ -24,10 +24,15 @@ class ApiKeyStore(context: Context) {
     @Volatile private var cached: String? = null
 
     /** The key, or "" when none was provisioned (online features then explain why they are off). */
+    // One caller at a time: at start-up the activity, the worker and the UI may all ask at once.
+    @Synchronized
     fun get(): String {
         cached?.let { return it }
         importIfPresent()
-        val key = runCatching { if (sealed.exists()) open(sealed.readBytes()) else "" }.getOrDefault("")
+        val key = runCatching { if (sealed.exists()) open(sealed.readBytes()) else "" }
+            .onFailure { android.util.Log.w("SafeRoute", "api key unseal failed: ${it.javaClass.simpleName}: ${it.message}") }
+            .getOrDefault("")
+        android.util.Log.i("SafeRoute", "api key present=${key.isNotBlank()} sealed=${sealed.exists()}")
         return key.also { if (it.isNotBlank()) cached = it }
     }
 

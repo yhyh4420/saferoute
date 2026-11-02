@@ -33,11 +33,14 @@ import com.saferoute.app.voice.VoiceQuestion
 import com.saferoute.app.alert.PreparedPlanUi
 import com.saferoute.app.alert.AlertResult
 import com.saferoute.app.alert.AlertScreen
+import com.saferoute.app.alert.MapMark
 import com.saferoute.app.location.DEMO_PLACES
 import com.saferoute.app.location.Fix
 import com.saferoute.app.location.headingUpdates
 import java.time.LocalDate
 import java.time.LocalDateTime
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -113,9 +116,16 @@ class MainActivity : ComponentActivity() {
                         },
                         running = running,
                         status = status,
+                        candidateTiles = g.candidates.tilesDone(),
+                        candidates = g.candidates.all().size,
+                        route = com.saferoute.app.learn.RouteReview.load(this@MainActivity),
                     )
                 }
-                LaunchedEffect(planVersion, stepFree) { refreshLearn() }
+                LaunchedEffect(planVersion, stepFree) {
+                    // Today's route review is offline: refresh it whenever the screen opens.
+                    withContext(Dispatchers.Default) { com.saferoute.app.learn.RouteReview.compute(this@MainActivity, g) }
+                    refreshLearn()
+                }
                 fun askOffline(q: String) {
                     val guidance = (result as? AlertResult.Ok)?.guidance
                     val shelter = guidance?.shelter
@@ -143,7 +153,11 @@ class MainActivity : ComponentActivity() {
                     fix?.let { f -> plans.lookup(f.lat, f.lon, hazard, stepFree) }?.let { p ->
                         // Plans made from a raw GPS fix carry the fix label; show where it applies instead.
                         PreparedPlanUi(if (p.placeLabel in setOf("GPS", "마지막 위치", com.saferoute.app.location.LAST_KNOWN)) "이 근처" else p.placeLabel, p.notesKo,
-                            p.backupId?.let { db.byId(it)?.bilingual }, p.meetingPointId?.let { db.byId(it)?.bilingual }, p.notesEn)
+                            p.backupId?.let { db.byId(it)?.bilingual }, p.meetingPointId?.let { db.byId(it)?.bilingual }, p.notesEn,
+                            listOfNotNull(
+                                p.backupId?.let { db.byId(it) }?.let { MapMark(it.lat, it.lon, "backup") },
+                                p.meetingPointId?.let { db.byId(it) }?.let { MapMark(it.lat, it.lon, "meeting") },
+                            ))
                     }
                 }
 
@@ -173,22 +187,34 @@ class MainActivity : ComponentActivity() {
                     }
                     locationOff = false
                 }
+                // Only while the screen is visible: GPS, compass and the minute re-check stop in the background
+                // (the field log showed background recomputes every minute, which only costs battery).
+                val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
                 LaunchedEffect(pinned, locationGranted, locationOff) {
                     if (pinned || !locationGranted || locationOff) return@LaunchedEffect
-                    location.lastKnown()?.let { fix = it }
-                    location.updates().collect {
-                        if (!pinned) fix = it
-                        learner.record(Visit(it.lat, it.lon, System.currentTimeMillis()))
-                        refreshLearn()
+                    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                        location.lastKnown()?.let { fix = it }
+                        location.updates().collect {
+                            if (!pinned) fix = it
+                            learner.record(Visit(it.lat, it.lon, System.currentTimeMillis()))
+                            refreshLearn()
+                        }
                     }
                 }
-                LaunchedEffect(Unit) { headingUpdates(this@MainActivity).collect { heading = it } }
+                LaunchedEffect(Unit) {
+                    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { headingUpdates(this@MainActivity).collect { heading = it } }
+                }
                 // Re-evaluate every minute too: school gates close at 18:00 even if nobody moves.
                 var minute by remember { mutableStateOf(0L) }
-                LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); minute++ } }
-                LaunchedEffect(fix, hazard, stepFree, minute) {
+                LaunchedEffect(Unit) {
+                    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                        minute++ // re-check on return to the screen, then every minute
+                        while (true) { kotlinx.coroutines.delay(60_000); minute++ }
+                    }
+                }
+                LaunchedEffect(fix, hazard, stepFree, minute, prepared) {
                     val f = fix ?: return@LaunchedEffect
-                    result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree, now()) }
+                    result = withContext(Dispatchers.Default) { engine.guide(f, hazard, stepFree, now(), prepared?.marks.orEmpty()) }
                     val ok = (result as? AlertResult.Ok)?.guidance
                     g.fieldLog.write("guide", mapOf(
                         "hazard" to hazard, "stepfree" to stepFree, "source" to f.label, "lat" to f.lat, "lon" to f.lon,
@@ -263,11 +289,16 @@ class MainActivity : ComponentActivity() {
                         if (!online()) refreshLearn("오프라인이에요. 계획은 온라인일 때 자동으로 만들어져요. · Offline. Plans are made automatically when online.")
                         else scope.launch {
                             refreshLearn("자주 가는 곳마다 재난별 계획을 만드는 중… · Making plans for each place and hazard…", running = true)
-                            val made = withContext(Dispatchers.IO) {
-                                LearnWorker.prepareMissingPlans(g, Profile(if (withChild) "a 5-year-old child" else "alone", stepFree))
+                            val done = withContext(Dispatchers.IO) {
+                                LearnWorker.exclusive {
+                                    val made = LearnWorker.prepareMissingPlans(g, Profile(if (withChild) "a 5-year-old child" else "alone", stepFree))
+                                    scope.launch { refreshLearn("주변 안전 장소 후보 찾는 중… · Searching guidance-matching places nearby…", running = true) }
+                                    made to LearnWorker.findCandidates(g)
+                                }
                             }
                             planVersion++
-                            refreshLearn("새 계획 ${made}개 저장 (검증 통과분만) · $made new plans saved (validated only)")
+                            refreshLearn(done?.let { (made, tiles) -> "새 계획 ${made}개 · 지도 칸 ${tiles}개 검토 · $made new plans · $tiles map tiles checked" }
+                                ?: "이미 백그라운드에서 갱신 중이에요. 잠시 후 다시 보세요. · An update is already running in the background.")
                         }
                     },
                     onPrepare = {

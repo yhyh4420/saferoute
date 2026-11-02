@@ -1,0 +1,385 @@
+/*@film
+title: SafeRoute는 어떻게 오프라인에서 1 ms 만에 대피 방향을 알려 주나
+subtitle: 평소에 미리 계산하고, 위급할 때는 따라가기만 한다
+artifact: https://claude.ai/artifact/NQX7zV8FW72FNrpozFzBxM
+*/
+
+/* ---------- 공용: 작은 보행망 (씬 3·4·6) ---------- */
+const QUAKE = '#e5534b', FLOOD = '#4c8dff';
+const GC = 9, GR = 5;
+function gx(i){ return w*(.14 + i*.09); }
+function gy(j){ return h*(.30 + j*.12); }
+// 4-이웃 격자. 일부 길은 없음, 일부는 지하 통로(홍수 때 ×20).
+const MISSING = new Set(['2,1-3,1','5,3-6,3','3,3-3,4','6,0-7,0','1,2-1,3']);
+const UNDER = new Set(['4,2-5,2']);
+const EDGES = [];
+for(let j=0;j<GR;j++) for(let i=0;i<GC;i++){
+  if(i<GC-1){ const k=i+','+j+'-'+(i+1)+','+j; if(!MISSING.has(k)) EDGES.push([i,j,i+1,j,UNDER.has(k)]); }
+  if(j<GR-1){ const k=i+','+j+'-'+i+','+(j+1); if(!MISSING.has(k)) EDGES.push([i,j,i,j+1,UNDER.has(k)]); }
+}
+const NID = (i,j)=> j*GC+i;
+function tree(sources, underPenalty){
+  const n=GC*GR, dist=new Array(n).fill(1e9), next=new Array(n).fill(-1), shel=new Array(n).fill(-1);
+  const adj=Array.from({length:n},()=>[]);
+  for(const [a,b,c,d,u] of EDGES){ const wgt=u?underPenalty:1; adj[NID(a,b)].push([NID(c,d),wgt,u]); adj[NID(c,d)].push([NID(a,b),wgt,u]); }
+  const q=[];
+  sources.forEach((s,k)=>{ const id=NID(s[0],s[1]); dist[id]=0; next[id]=id; shel[id]=k; q.push(id); });
+  while(q.length){ q.sort((x,y)=>dist[x]-dist[y]); const u=q.shift();
+    for(const [v,wgt] of adj[u]){ if(dist[u]+wgt<dist[v]){ dist[v]=dist[u]+wgt; next[v]=u; shel[v]=shel[u]; q.push(v);} } }
+  return {dist,next,shel};
+}
+const QS = [[0,0],[8,4]];            // 지진: 운동장·공원
+const FS = [[7,0],[1,4]];            // 홍수: 지하 아닌 임시주거시설
+const TQ = tree(QS, 1), TF = tree(FS, 20), TFraw = tree(FS, 1);
+const ME = [4,2];
+function drawGrid(alpha, underColor){
+  A(alpha);
+  for(const [a,b,c,d,u] of EDGES){
+    if(u) seg(gx(a),gy(b),gx(c),gy(d),underColor||C.red,2.2,[6,5]);
+    else seg(gx(a),gy(b),gx(c),gy(d),C.line,2);
+  }
+  A(1);
+}
+function shelters(list,col,alpha,label){
+  A(alpha);
+  list.forEach(s=>{ glow(gx(s[0]),gy(s[1]),h*.05,col,.35); box(gx(s[0])-h*.022,gy(s[1])-h*.022,h*.044,h*.044,6,col);
+    if(label) T(label,gx(s[0]),gy(s[1])+h*.045,Math.round(h*.017),col,'center',600); });
+  A(1);
+}
+function pathFrom(tr,start){ const out=[start]; let c=start; for(let k=0;k<40&&tr.next[c]!==c&&tr.next[c]>=0;k++){ c=tr.next[c]; out.push(c);} return out; }
+function nxy(id){ return [gx(id%GC), gy(Math.floor(id/GC))]; }
+function legend(items){
+  const fs=Math.round(h*.018); let x=w*.06;
+  items.forEach(([c,l])=>{ dot(x,h*.945,h*.009,c); T(l,x+h*.018,h*.945,fs,C.muted,'left',500); ctx.font='500 '+fs+'px '+SANS; x+=ctx.measureText(l).width+h*.06; });
+}
+
+/* ---------- 1 · 문제 ---------- */
+S('problem','1 · 문제',25,(lt)=>{
+  title('경보가 울린 순간, 어디로 가야 하나', lt, C.muted);
+  const px=w*.5, py=h*.55;
+  // 폰
+  A(E(lt,.3,.8)); box(px-w*.09,h*.22,w*.18,h*.66,24,C.panel,C.line,1.6);
+  A(.6+.4*Math.abs(Math.sin(lt*4))*(lt<6?1:0)+(lt>=6?.4:0));
+  chip(px-w*.07,h*.26,w*.14,h*.05,C.red,'재난 경보','#fff',Math.round(h*.022)); A(1);
+  dot(px,py,h*.016,C.ink); glow(px,py,h*.05,'rgba(255,255,255,.3)',.5);
+  // 두 방향
+  const qa=E(lt,5,1.2), fa=E(lt,7,1.2);
+  if(qa>0){ A(qa); arrow(px,py,px+(-w*.07)*qa,py-h*.14*qa,QUAKE,5); T('지진 → 넓은 공터',px-w*.08,py-h*.18,Math.round(h*.02),QUAKE,'center',700); A(1); }
+  if(fa>0){ A(fa); arrow(px,py,px+w*.07*fa,py+h*.12*fa,FLOOD,5); T('홍수 → 높은 곳, 지하 피하기',px+w*.06,py+h*.18,Math.round(h*.02),FLOOD,'center',700); A(1); }
+  // 통신 끊김
+  const sa=E(lt,11,.8);
+  if(sa>0){ A(sa); const bx=px+w*.05, by=h*.31;
+    for(let k=0;k<4;k++) box(bx+k*h*.012,by-k*h*.008,h*.008,h*.012+k*h*.008,2,lt>13?C.faint:C.ink);
+    if(lt>13){ seg(bx-4,by-h*.03,bx+h*.05,by+h*.01,C.red,3); T('통신 끊김',bx+h*.02,by+h*.035,Math.round(h*.017),C.red,'center',700); } A(1); }
+  // 수치
+  const na=E(lt,17,1);
+  if(na>0){ A(na); T('35.4%',w*.2,h*.5,Math.round(h*.075),C.ink,'center',800);
+    T('서울 시민 중 지진과 홍수의',w*.2,h*.6,Math.round(h*.022),C.muted,'center',500);
+    T('첫 이동 방향이 90° 넘게 다른 비율',w*.2,h*.64,Math.round(h*.022),C.muted,'center',500);
+    TM('eval/seoul_divergence.py · WorldPop 2020',w*.2,h*.7,Math.round(h*.016),C.faint,'center',500); A(1); }
+},[
+  {t0:0,t1:5,text:'재난 경보가 울렸습니다. 지금 이 자리에서 <b>어디로</b> 걸어가야 할까요?'},
+  {t0:5,t1:11,text:'정답은 재난마다 다릅니다. 지진은 <span class="k">건물에서 떨어진 넓은 공간</span>, 홍수는 <span class="k">높은 곳, 지하는 피하기</span>.'},
+  {t0:11,t1:17,text:'그리고 큰 재난 때는 통신이 끊길 수 있습니다. 서버에 물어볼 수 없다는 뜻입니다.'},
+  {t0:17,t1:25,text:'서울 시민의 <b>35.4%</b>는 지진과 홍수 때 처음 걸어야 할 방향이 90° 넘게 다릅니다. 같은 앱, 같은 자리라도 재난별 답이 필요합니다.'},
+],C.red);
+
+/* ---------- 2 · 규칙 테이블 ---------- */
+S('rules','2 · 규칙 테이블',30,(lt)=>{
+  stepHud(lt,[[0,'STEP 1 · 재난 → 목적지 규칙','pipeline/schema.py · HAZARD_RULES'],[14,'STEP 2 · LLM은 목적지를 정하지 않는다','suitable(shelter, hazard)']]);
+  const tx=w*.08, tw=w*.84, ty=h*.24, rh=h*.11, fs=Math.round(h*.021);
+  const cols=[0,.14,.44,.72];
+  const rows=[
+    ['재난','허용 목적지','경로 비용','행동 문구 (출처: 행정안전부)'],
+    ['지진','옥외대피장소 (운동장·공원)','—','흔들림이 멈추면 건물 밖 넓은 곳으로'],
+    ['홍수','임시주거시설 · 지하 제외','지하 ×20 · 침수흔적 ×3','높은 곳으로, 지하는 피하기'],
+    ['(일본)','지정긴급피난장소 재난 플래그','—','쓰나미·산사태·화재 행 추가'],
+  ];
+  rows.forEach((r,i)=>{ const a=E(lt,.4+i*1.4,.7); if(a<=0) return; A(a);
+    const y=ty+i*rh; if(i>0) seg(tx,y,tx+tw,y,C.line,1);
+    const col = i===1?QUAKE:i===2?FLOOD:i===0?C.muted:C.faint;
+    r.forEach((c,k)=> T(c,tx+tw*cols[k]+8,y+rh/2,i===0?Math.round(fs*.9):fs,k===0?col:(i===0?C.muted:C.ink),'left',k===0||i===0?700:500));
+    A(1); });
+  if(lt>14){ const l=lt-14;
+    const bx=w*.5, by=h*.78;
+    A(E(l,0,.8)); box(bx-w*.32,by-h*.07,w*.64,h*.14,14,C.panel,C.line,1.4);
+    token(bx-w*.25,by,h*.032,C.purple,'AI','#fff');
+    T('LLM이 "여기로 가세요"를 만들어 내면?',bx-w*.2,by-h*.02,Math.round(h*.022),C.ink,'left',600);
+    A(E(l,2,.6)); seg(bx-w*.27,by-h*.04,bx-w*.23,by+h*.04,C.red,4); seg(bx-w*.23,by-h*.04,bx-w*.27,by+h*.04,C.red,4);
+    T('목적지는 규칙과 공식 데이터만 정합니다 → 지어낸 장소 0',bx-w*.2,by+h*.03,Math.round(h*.022),C.green,'left',700); A(1);
+  }
+},[
+  {t0:0,t1:5,text:'첫 번째 원칙: 재난마다 <b>어디로 가는지</b>는 표 한 장이 정합니다. <span class="mono">HAZARD_RULES</span>.'},
+  {t0:5,t1:9,text:'지진은 공식 <span class="k">지진옥외대피소</span>(운동장·공원)로, 행정안전부 행동요령 그대로.'},
+  {t0:9,t1:14,text:'홍수는 임시주거시설 중 <b>지하를 뺀 곳</b>으로. 경로에서도 지하 구간은 20배, 과거 침수 구역(<span class="mono">침수흔적도</span>)은 3배 멀게 칩니다.'},
+  {t0:14,t1:21,text:'두 번째 원칙: 대형 언어 모델은 목적지를 <b>만들지 않습니다</b>. 그럴듯하지만 없는 장소는 재난 때 치명적이니까요.'},
+  {t0:21,t1:30,text:'새 재난은 표에 <b>한 줄</b>을 더하면 됩니다. 일본 고치시 팩은 이 표에 쓰나미·산사태·화재 행만 더해 같은 코드로 만들었습니다.'},
+],C.blue);
+
+/* ---------- 3 · 경로 트리 (빌드 타임) ---------- */
+S('tree','3 · 경로 트리 만들기',45,(lt)=>{
+  stepHud(lt,[
+    [0,'STEP 1 · 보행망과 대피소','graph.load(seoul_walk_v2.graphml)'],
+    [8,'STEP 2 · 모든 대피소에서 동시에 물결','dijkstra(indices=sources, min_only=True)'],
+    [22,'STEP 3 · 노드마다 "다음 칸" 하나','next[n] · dist[n] · shelter[n]'],
+    [33,'STEP 4 · 재난별로 한 번 더, 그리고 팩','oracle.write_pack() → pack_seoul.bin'],
+  ]);
+  const flood = lt>=33;
+  const tr = flood?TF:TQ, src = flood?FS:QS, col = flood?FLOOD:QUAKE;
+  drawGrid(E(lt,.2,1), flood?C.red:'rgba(229,83,75,.35)');
+  shelters(src,col,E(lt,2,1),flood?'임시주거시설':'운동장·공원');
+  // 물결: 거리 d인 노드는 시간 base + d*0.8 에 켜짐
+  const base = flood?34:9;
+  if(lt>=base){
+    for(let id=0;id<GC*GR;id++){ const d=tr.dist[id]; if(d>=1e9) continue;
+      const on=E(lt,base+Math.min(d,12)*.8,.5); if(on<=0) continue;
+      const [x,y]=nxy(id); A(on*.9); dot(x,y,h*.011,col); A(1); }
+  }
+  // 다음 칸 화살표
+  const aon = flood?E(lt,38,1.5):E(lt,22,2);
+  if(aon>0){ A(aon*.85);
+    for(let id=0;id<GC*GR;id++){ const nx=tr.next[id]; if(nx<0||nx===id) continue;
+      const [x1,y1]=nxy(id),[x2,y2]=nxy(nx); arrow(x1,y1,x1+(x2-x1)*.55,y1+(y2-y1)*.55,col,2); }
+    A(1); }
+  if(lt>=26&&lt<33){ const [x,y]=nxy(NID(ME[0],ME[1])); glow(x,y,h*.05,'rgba(255,255,255,.4)',.6);
+    T('이 노드에 저장되는 것: next · 남은 거리 · 대피소 번호',x,y+h*.06,Math.round(h*.019),C.ink,'center',600); }
+  if(flood){ const l=lt-33; A(E(l,1,1));
+    T('지하 통로(빨간 점선)는 홍수 트리에서 ×20 → 돌아감',w*.5,h*.885,Math.round(h*.02),C.red,'center',600); A(1);
+    A(E(l,6,1)); box(w*.62,h*.18,w*.33,h*.09,10,C.panel,C.line,1.2);
+    TM('8 B × 166,759 노드 × 트리 6개',w*.785,h*.205,Math.round(h*.018),C.ink,'center',600);
+    T('+ 좌표·격자 색인 → pack_seoul.bin ≈ 10 MB',w*.785,h*.245,Math.round(h*.018),C.green,'center',600); A(1); }
+  legend([[QUAKE,'지진 트리'],[FLOOD,'홍수 트리'],[C.red,'지하 구간(점선)']]);
+},[
+  {t0:0,t1:8,text:'노트북에서 미리 하는 일입니다. 서울의 걸을 수 있는 길 <b>16만 6천여 개 교차점</b>을 그래프로 놓고, 지진 대피소를 올립니다.'},
+  {t0:8,t1:15,text:'모든 대피소에서 <b>동시에</b> 물결을 퍼뜨립니다. <span class="mono">다중 출발점 Dijkstra</span>: 물결이 먼저 닿은 대피소가 그 교차점의 가장 가까운 대피소입니다.'},
+  {t0:15,t1:22,text:'직선이 아니라 실제로 걸을 수 있는 길로만 퍼지므로, 거리는 <b>걸어서 가는 거리</b>입니다.'},
+  {t0:22,t1:28,text:'퍼지면서 각 교차점에 "어느 쪽에서 왔는지" 화살표 하나를 남깁니다. 거꾸로 따라가면 곧장 대피소입니다.'},
+  {t0:28,t1:33,text:'그래서 교차점마다 저장하는 건 단 세 가지: <span class="mono">다음 교차점 · 남은 거리 · 대피소 번호</span>, 8바이트.'},
+  {t0:33,t1:39,text:'홍수용으로 한 번 더 합니다. 이번엔 지하 통로가 20배 비싸서, 물결이 지하를 피해 돌아갑니다.'},
+  {t0:39,t1:45,text:'지진·홍수, 계단 없는 경로, 밤에 학교를 뺀 경로까지 트리 6개. 모두 합쳐 앱 안의 약 <b>10 MB</b> 파일 하나입니다.'},
+],QUAKE);
+
+/* ---------- 4 · 경보 순간 ---------- */
+S('alert','4 · 경보 순간',35,(lt)=>{
+  stepHud(lt,[
+    [0,'STEP 1 · GPS 위치','LocationSource.updates()'],
+    [6,'STEP 2 · 가장 가까운 교차점','RoutePack.nearestNode(lat, lon)  // 0.002° 격자'],
+    [14,'STEP 3 · 포인터 따라가기','while (next != node) node = next[node]'],
+    [24,'STEP 4 · 화살표와 거리','alert_compute_ms ≈ 1'],
+  ]);
+  drawGrid(.9,'rgba(229,83,75,.35)');
+  shelters(QS,QUAKE,1,'운동장·공원');
+  // 격자 색인
+  const ga=lt>=6&&lt<14?E(lt,6,1):0;
+  if(ga>0){ A(ga*.5); for(let k=0;k<6;k++){ seg(w*(.12+k*.15),h*.25,w*(.12+k*.15),h*.86,C.purple,1,[3,6]); }
+    for(let k=0;k<5;k++){ seg(w*.12,h*(.25+k*.15),w*.87,h*(.25+k*.15),C.purple,1,[3,6]); } A(1);
+    A(ga); T('격자 칸 하나만 뒤져 가장 가까운 교차점',w*.5,h*.885,Math.round(h*.02),C.purple,'center',600); A(1); }
+  const start=NID(ME[0],ME[1]);
+  const gps=[gx(ME[0])+w*.025,gy(ME[1])-h*.04];
+  A(E(lt,1,.8)); glow(gps[0],gps[1],h*.06,'rgba(255,255,255,.35)',.7); dot(gps[0],gps[1],h*.014,C.ink);
+  T('나',gps[0]+h*.03,gps[1]-h*.02,Math.round(h*.02),C.ink,'left',700); A(1);
+  if(lt>=9){ const [x,y]=nxy(start); A(E(lt,9,.8)); seg(gps[0],gps[1],x,y,C.ink,2,[4,4]); A(1); }
+  // 포인터 점프
+  const path=pathFrom(TQ,start);
+  if(lt>=14){
+    const hop=Math.min(path.length-1,Math.floor((lt-14)/1.6));
+    for(let k=0;k<hop;k++){ const a=nxy(path[k]),b=nxy(path[k+1]); seg(a[0],a[1],b[0],b[1],QUAKE,6); }
+    const cur=nxy(path[hop]); glow(cur[0],cur[1],h*.05,'rgba(229,83,75,.6)',.8); dot(cur[0],cur[1],h*.016,QUAKE);
+    if(lt<24) TM('next['+path[Math.min(hop,path.length-1)]+'] → '+(path[hop+1]!=null?path[hop+1]:'도착'),w*.5,h*.885,Math.round(h*.02),C.yellow,'center',600);
+  }
+  if(lt>=24){ const l=lt-24; A(E(l,0,.8));
+    box(w*.66,h*.2,w*.29,h*.22,14,C.panel,C.line,1.4);
+    const a=nxy(path[0]),b=nxy(path[1]); ctx.save(); ctx.translate(w*.71,h*.31); ctx.rotate(Math.atan2(b[1]-a[1],b[0]-a[0])+Math.PI/2);
+    ctx.fillStyle=QUAKE; ctx.beginPath(); ctx.moveTo(0,-h*.05); ctx.lineTo(h*.035,0); ctx.lineTo(h*.013,0); ctx.lineTo(h*.013,h*.05); ctx.lineTo(-h*.013,h*.05); ctx.lineTo(-h*.013,0); ctx.lineTo(-h*.035,0); ctx.closePath(); ctx.fill(); ctx.restore();
+    T((TQ.dist[start]*85)+' m',w*.77,h*.28,Math.round(h*.045),C.ink,'left',800);
+    T('걸어서 약 '+Math.max(1,Math.round(TQ.dist[start]*85/60))+'분',w*.77,h*.34,Math.round(h*.022),C.muted,'left',600);
+    TM('네트워크 0 · 약 1 ms',w*.805,h*.39,Math.round(h*.018),C.green,'center',600); A(1); }
+  legend([[C.ink,'나 (GPS)'],[QUAKE,'지진 목적지와 경로'],[C.purple,'격자 색인']]);
+},[
+  {t0:0,t1:6,text:'이제 폰입니다. 경보 화면이 열리면 GPS 위치를 받습니다. 아직 위치가 없으면 마지막 위치나 <b>자주 가는 곳</b> 버튼으로 시작합니다.'},
+  {t0:6,t1:14,text:'팩 안에 미리 만든 <span class="mono">0.002°</span> 격자 색인으로, 전체를 뒤지지 않고 근처 칸만 보고 가장 가까운 교차점을 찾습니다.'},
+  {t0:14,t1:20,text:'그다음은 <b>포인터를 따라가기만</b> 합니다. <span class="mono">next[노드]</span>를 읽고, 또 읽고 — 계산이 아니라 조회입니다.'},
+  {t0:20,t1:24,text:'파일은 <span class="mono">mmap</span>으로 메모리에 비춰 두기만 해서, 여는 데 수 ms, 따라가는 데 1 ms 남짓입니다.'},
+  {t0:24,t1:30,text:'첫 몇 걸음의 방향이 화살표가 되고, 나침반이 있으면 휴대폰 방향 기준으로 돌려 보여 줍니다.'},
+  {t0:30,t1:35,text:'비행기 모드에서도 같습니다. <b>통신이 필요한 순간이 하나도 없습니다.</b>'},
+],QUAKE);
+
+/* ---------- 5 · 함정: 직선거리 ---------- */
+S('straight','5 · 함정: 직선거리',25,(lt)=>{
+  title('"지도에서 제일 가까운 대피소"의 함정', lt, C.muted);
+  const ry=h*.52;
+  A(E(lt,.3,.8)); box(0,ry-h*.05,w,h*.1,0,'rgba(76,141,255,.18)'); T('하천',w*.06,ry,Math.round(h*.02),FLOOD,'left',700);
+  box(w*.82,ry-h*.06,w*.04,h*.12,4,C.line); T('다리',w*.84,ry-h*.08,Math.round(h*.017),C.muted,'center',600); A(1);
+  const me=[w*.42,h*.72], a=[w*.46,h*.32], b=[w*.18,h*.8];
+  A(E(lt,1,.8)); dot(me[0],me[1],h*.016,C.ink); T('나',me[0]+h*.03,me[1],Math.round(h*.02),C.ink,'left',700);
+  box(a[0]-h*.02,a[1]-h*.02,h*.04,h*.04,6,FLOOD); T('대피소 A',a[0],a[1]-h*.045,Math.round(h*.019),FLOOD,'center',700);
+  box(b[0]-h*.02,b[1]-h*.02,h*.04,h*.04,6,FLOOD); T('대피소 B',b[0],b[1]+h*.045,Math.round(h*.019),FLOOD,'center',700); A(1);
+  if(lt>4){ A(E(lt,4,.8)); seg(me[0],me[1],a[0],a[1],C.yellow,2.5,[7,6]); T('직선 380 m — 가장 가까워 보임',w*.47,h*.62,Math.round(h*.02),C.yellow,'left',700); A(1); }
+  if(lt>9){ A(E(lt,9,1)); seg(me[0],me[1],w*.84,me[1],C.red,4); seg(w*.84,me[1],w*.84,a[1],C.red,4); seg(w*.84,a[1],a[0],a[1],C.red,4);
+    T('실제 걷는 길 1.5 km (다리까지 돌아감)',w*.66,h*.79,Math.round(h*.02),C.red,'center',700); A(1); }
+  if(lt>14){ A(E(lt,14,1)); seg(me[0],me[1],b[0]+h*.02,me[1],C.green,4); seg(b[0]+h*.02,me[1],b[0]+h*.02,b[1],C.green,4);
+    T('B: 걸어서 520 m ✓',w*.27,h*.68,Math.round(h*.02),C.green,'center',700); A(1); }
+  if(lt>18){ A(E(lt,18,1)); T('31.8%',w*.5,h*.2,Math.round(h*.06),C.ink,'center',800);
+    T('서울 시민 중 홍수 때 "직선 최근접"이 실제 보행 최근접과 다른 비율',w*.5,h*.26,Math.round(h*.019),C.muted,'center',500); A(1); }
+},[
+  {t0:0,t1:4,text:'흔한 대피 지도는 "가장 가까운 대피소"를 <b>직선거리</b>로 고릅니다.'},
+  {t0:4,t1:9,text:'대피소 A는 직선으로 380 m. 화면으로는 제일 가깝습니다.'},
+  {t0:9,t1:14,text:'그런데 사이에 하천이 있습니다. 실제로는 다리까지 돌아가야 해서 <b>1.5 km</b>. (예시 수치)'},
+  {t0:14,t1:18,text:'보행망으로 계산한 답은 대피소 B, 걸어서 520 m입니다. 앞에서 만든 트리는 처음부터 이 답을 갖고 있습니다.'},
+  {t0:18,t1:25,text:'서울 전체로 보면 홍수 때 <b>31.8%</b>가 직선 최근접과 실제 최근접이 다릅니다. 그래서 길로 계산합니다.'},
+],C.yellow);
+
+/* ---------- 6 · 밤의 학교 ---------- */
+S('night','6 · 밤의 학교',25,(lt)=>{
+  stepHud(lt,[[0,'STEP 1 · 목적지가 학교 운동장','shelter.mayLock = true'],[7,'STEP 2 · 18시, 문이 잠길 수 있다','gatesMayBeClosed(now)'],[13,'STEP 3 · 학교를 뺀 트리로 대안','TreeKey(hazard, "unlocked")']]);
+  drawGrid(.85,'rgba(229,83,75,.35)');
+  const school=[0,0], park=[6,4];
+  const start=NID(ME[0],ME[1]);
+  const tUn=tree([park],1);
+  // 학교
+  const sx=gx(school[0]), sy=gy(school[1]);
+  box(sx-h*.03,sy-h*.03,h*.06,h*.06,8,QUAKE); T('학교 운동장',sx+h*.05,sy,Math.round(h*.019),QUAKE,'left',700);
+  const pp=pathFrom(tree([school],1),start);
+  if(lt<13){ for(let k=0;k<pp.length-1;k++){ const a=nxy(pp[k]),b=nxy(pp[k+1]); seg(a[0],a[1],b[0],b[1],QUAKE,5); } }
+  const [mx,my]=nxy(start); dot(mx,my,h*.014,C.ink);
+  // 시계
+  const clk = lt<7?'17:58':lt<9?'17:59':'18:00';
+  TM(clk,w*.86,h*.24,Math.round(h*.04),lt>=9?C.yellow:C.ink,'center',700);
+  if(lt>=9){ A(E(lt,9,.8)); box(sx-h*.03,sy-h*.03,h*.06,h*.06,8,null,C.yellow,3);
+    T('🔒',sx,sy,Math.round(h*.03),C.yellow,'center',700); A(1); }
+  if(lt>=13){ const up=pathFrom(tUn,start); A(E(lt,13,1));
+    for(let k=0;k<up.length-1;k++){ const a=nxy(up[k]),b=nxy(up[k+1]); seg(a[0],a[1],b[0],b[1],C.yellow,5); }
+    const [px,py]=nxy(NID(park[0],park[1])); glow(px,py,h*.05,'rgba(246,195,68,.6)',.8); dot(px,py,h*.02,C.yellow);
+    T('공원 (잠김 시 대안)',px,py+h*.045,Math.round(h*.019),C.yellow,'center',700); A(1); }
+  if(lt>=19){ A(E(lt,19,1)); T('44.6%',w*.2,h*.86,Math.round(h*.045),C.ink,'center',800);
+    T('서울 시민의 가장 가까운 지진 목적지 = 학교 운동장',w*.5,h*.86,Math.round(h*.019),C.muted,'left',500);
+    T('잠겨 있으면 대안까지 중앙값 +606 m',w*.5,h*.9,Math.round(h*.019),C.yellow,'left',600); A(1); }
+},[
+  {t0:0,t1:7,text:'공식 지진옥외대피소의 상당수는 <b>학교 운동장</b>입니다. 낮에는 좋은 목적지입니다.'},
+  {t0:7,t1:13,text:'하지만 밤과 주말에는 학교 문이 <span class="k">잠겨 있을 수 있습니다</span>. 서울연구원도 이 문제를 지적했습니다.'},
+  {t0:13,t1:19,text:'그래서 학교를 뺀 트리를 하나 더 만들어 두었습니다. 18시가 넘으면 앱은 경고와 함께 <b>학교가 아닌 가장 가까운 곳</b>을 같이 보여 줍니다.'},
+  {t0:19,t1:25,text:'서울 시민의 44.6%가 가장 가까운 지진 목적지가 학교 운동장이고, 잠겼을 때 대안까지 중앙값 606 m를 더 걷습니다. 계단 없는 경로도 따로 계산합니다.'},
+],C.yellow);
+
+/* ---------- 7 · 평소의 백그라운드 ---------- */
+S('background','7 · 평소의 백그라운드',40,(lt)=>{
+  stepHud(lt,[
+    [0,'STEP 1 · 15분마다 생활 반경 기록','LearnWorker (WorkManager, 15 min)'],
+    [10,'STEP 2 · Muse Spark가 도구를 부른다','route_oracle → get_shelters → get_guideline → save_plan'],
+    [24,'STEP 3 · 검증기가 지어낸 장소를 거른다','validate(plan): id ∈ 도구가 돌려준 id'],
+    [33,'STEP 4 · 저장 → 경보 때 오프라인으로 읽기','PlanStore.lookup(lat, lon, hazard, stepFree)'],
+  ]);
+  // 왼쪽: 생활 반경 칸
+  const lx=w*.06, ly=h*.24, cs=h*.05;
+  const cells=[[1,1],[2,1],[2,2],[3,2],[4,2],[4,3],[5,3],[6,3],[6,4],[1,0],[0,1]];
+  A(E(lt,.2,.8)); box(lx,ly,cs*8,cs*6,10,C.panel,C.line,1.2); T('생활 반경 (약 110 m 칸)',lx+cs*4,ly-h*.02,Math.round(h*.018),C.muted,'center',600); A(1);
+  cells.forEach((c,i)=>{ const a=E(lt,1+i*.7,.4); if(a<=0) return; A(a*.85); box(lx+c[0]*cs+3,ly+c[1]*cs+3,cs-6,cs-6,4,'rgba(67,214,160,.35)'); A(1); });
+  TM('15:00  15:15  15:30 …',lx+cs*4,ly+cs*6+h*.03,Math.round(h*.017),C.faint,'center',500);
+  // 오른쪽: 에이전트
+  if(lt>=10){
+    const ax=w*.5, ay=h*.26;
+    A(E(lt,10,.8)); token(ax,ay+h*.04,h*.035,C.purple,'MS','#fff'); T('Muse Spark (tool calling)',ax+h*.05,ay+h*.04,Math.round(h*.02),C.purple,'left',700); A(1);
+    const tools=['route_oracle','get_shelters','get_guideline','save_plan'];
+    tools.forEach((t,i)=>{ const a=E(lt,12+i*2.5,.6); if(a<=0) return; A(a);
+      const y=ay+h*.12+i*h*.07; arrow(ax+h*.02,ay+h*.08,ax+w*.03,y,C.purple,1.6);
+      chip(ax+w*.035,y-h*.022,w*.16,h*.044,'rgba(183,156,255,.22)',t,C.ink,Math.round(h*.018));
+      if(i===0) T('→ 덕수초 운동장 528 m (트리에서)',ax+w*.2,y,Math.round(h*.017),C.muted,'left',500);
+      A(1); });
+  }
+  if(lt>=24){ const l=lt-24, vx=w*.72, vy=h*.62;
+    A(E(l,0,.8)); box(vx,vy,w*.24,h*.2,12,C.panel,C.line,1.4); T('검증기',vx+w*.12,vy+h*.03,Math.round(h*.02),C.ink,'center',700);
+    T('1차 덕수초 ✓',vx+w*.02,vy+h*.075,Math.round(h*.018),C.green,'left',600);
+    T('예비 내수2근린공원 ✓',vx+w*.02,vy+h*.11,Math.round(h*.018),C.green,'left',600);
+    A(E(l,2,.6)); T('KR:FAKE-001 ✕ 거부',vx+w*.02,vy+h*.145,Math.round(h*.018),C.red,'left',700); A(1); }
+  if(lt>=33){ const l=lt-33; A(E(l,0,.8));
+    T('40회 평가: 87.5% 통과 · 지어낸 ID 0건 · 회당 약 $0.02',w*.5,h*.9,Math.round(h*.021),C.green,'center',700); A(1); }
+},[
+  {t0:0,t1:10,text:'평소에는 앱이 뒤에서 조용히 일합니다. 15분마다 지나간 곳을 <b>폰 안에만</b> 기록해 생활 반경을 배웁니다.'},
+  {t0:10,t1:17,text:'온라인일 때, 아직 계획이 없는 장소마다 <span class="mono">Muse Spark</span>가 계획을 세웁니다. 직접 답하지 않고 <b>도구를 부릅니다</b>.'},
+  {t0:17,t1:24,text:'<span class="mono">route_oracle</span>은 앞의 트리에서 검증된 최근접 대피소를, 나머지 도구는 후보·행동요령을 돌려줍니다. 밤에 잠길 학교라면 대안도 함께.'},
+  {t0:24,t1:33,text:'저장 전에 검증기가 확인합니다: 계획에 적힌 장소 ID가 <b>도구가 실제로 돌려준 것</b>인지. 지어낸 ID는 저장되지 않습니다.'},
+  {t0:33,t1:40,text:'저장된 계획은 경보 때 통신 없이 읽힙니다. 40회 평가에서 87.5% 통과, 지어낸 ID는 0건이었습니다.'},
+],C.purple);
+
+/* ---------- 8 · 생활 반경 후보 ---------- */
+S('candidates','8 · 생활 반경의 안전 장소 후보',35,(lt)=>{
+  stepHud(lt,[
+    [0,'STEP 1 · 생활 칸 주변만 지도 받기','CandidateFinder.update() · 타일 0.005° ≈ 550 m'],
+    [9,'STEP 2 · 지진: 건물에서 먼 넓은 공간','가장자리까지 ≥ 15 m · 1인 0.825 m² × 1,000명'],
+    [19,'STEP 3 · 홍수: 하천보다 높은 곳','DEM: 하천보다 ≥ 10 m · ≥ 150 m · 침수흔적 밖'],
+    [29,'STEP 4 · 공식 대피소 옆에 "매뉴얼 기준"','공식 지정 아님 — 따로 표시'],
+  ]);
+  if(lt<19){
+    // 타일
+    const tx=w*.08, ty=h*.24, ts=h*.13;
+    for(let i=0;i<4;i++) for(let j=0;j<3;j++){ const on=(i+j)%2===0||i===1; const a=E(lt,.5+(i*3+j)*.25,.4); if(a<=0) continue;
+      A(a); box(tx+i*ts,ty+j*ts,ts-4,ts-4,6,on?'rgba(91,156,255,.12)':null,on?C.blue:C.line,1); A(1); }
+    A(E(lt,3,.8)); T('생활 칸 주변 타일만 → Overpass',tx+ts*2,ty+ts*3+h*.03,Math.round(h*.019),C.blue,'center',600);
+    T('(서버엔 타일만 · 정확한 위치 아님)',tx+ts*2,ty+ts*3+h*.065,Math.round(h*.017),C.muted,'center',500); A(1);
+    // 공원 다각형과 가장 깊은 점
+    if(lt>=9){ const l=lt-9, cx=w*.7, cy=h*.52;
+      A(E(l,0,.8)); ctx.beginPath(); const pts=[[-.16,-.12],[.1,-.16],[.17,.02],[.08,.15],[-.12,.13],[-.18,0]];
+      pts.forEach((p,k)=>{ const x=cx+p[0]*w, y=cy+p[1]*h*1.4; k?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.closePath();
+      ctx.fillStyle='rgba(67,214,160,.12)'; ctx.fill(); ctx.strokeStyle=C.green; ctx.lineWidth=2; ctx.stroke(); A(1);
+      A(E(l,2,1)); const r=h*.14*eo(ap(l,2,2)); ctx.beginPath(); ctx.arc(cx-w*.01,cy,r,0,7); ctx.strokeStyle=QUAKE; ctx.lineWidth=2; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+      dot(cx-w*.01,cy,h*.012,QUAKE); T('가장자리(건물·도로)에서 가장 먼 점',cx,cy-h*.25,Math.round(h*.019),QUAKE,'center',700); A(1);
+      A(E(l,5,.8)); T('면적 ÷ 0.825 m² ≥ 1,000명 · 경사 ≤ 15%',cx,cy+h*.26,Math.round(h*.018),C.muted,'center',600); A(1); }
+  } else {
+    const l=lt-19;
+    // 단면도
+    const bx=w*.1, by=h*.78, bw=w*.8;
+    A(E(l,0,.8)); ctx.beginPath(); ctx.moveTo(bx,by);
+    for(let k=0;k<=40;k++){ const x=bx+bw*k/40, t=k/40; const y=by-h*(.06+.32*Math.max(0,Math.sin(t*Math.PI*.9))*(t>.25?1:.3)); ctx.lineTo(x,y); }
+    ctx.lineTo(bx+bw,by); ctx.closePath(); ctx.fillStyle='rgba(138,147,166,.18)'; ctx.fill(); A(1);
+    A(E(l,.5,.8)); box(bx+bw*.04,by-h*.08,bw*.12,h*.05,4,'rgba(76,141,255,.5)'); T('하천',bx+bw*.1,by-h*.1,Math.round(h*.018),FLOOD,'center',700); A(1);
+    const px=bx+bw*.55, py=by-h*.35;
+    A(E(l,2,.8)); dot(px,py,h*.016,FLOOD); T('공원',px,py-h*.035,Math.round(h*.019),FLOOD,'center',700);
+    seg(bx+bw*.1,py,px,py,C.yellow,1.5,[4,4]); seg(bx+bw*.1,by-h*.08,bx+bw*.1,py,C.yellow,2);
+    T('하천보다 ≥ 10 m 높음',bx+bw*.12,(py+by-h*.08)/2,Math.round(h*.019),C.yellow,'left',700);
+    T('하천에서 ≥ 150 m',(bx+bw*.1+px)/2,py-h*.02,Math.round(h*.018),C.yellow,'center',600); A(1);
+    A(E(l,5,.8)); TM('terrain_seoul.bin · 30 m 고도 격자 + 침수흔적 마스크 (앱 안, 3.7 MB)',w*.5,h*.25,Math.round(h*.018),C.muted,'center',600); A(1);
+    if(l>=10){ A(E(l,10,.8)); box(w*.3,h*.3,w*.4,h*.1,12,'rgba(183,156,255,.15)',C.purple,1.4);
+      T('매뉴얼 기준 가까운 안전 장소 · 공식 지정 아님',w*.5,h*.35,Math.round(h*.021),C.purple,'center',700); A(1); }
+  }
+},[
+  {t0:0,t1:9,text:'공식 대피소만으로는 빈 곳이 있습니다. 그래서 <b>생활 반경 주변</b>의 약 550 m 타일만 OSM에서 받아, 공원·광장·운동장을 살펴봅니다.'},
+  {t0:9,t1:14,text:'지진 기준은 행정안전부 행동요령: "건물과 거리를 두고 넓은 공간으로". 공원 다각형 안에서 <span class="k">가장자리에서 가장 먼 점</span>을 찾습니다.'},
+  {t0:14,t1:19,text:'그 점이 가장자리에서 15 m 이상이고, 1인 0.825 m² 기준으로 천 명 이상 들어가며, 경사가 완만하면 지진 후보입니다.'},
+  {t0:19,t1:25,text:'홍수 기준은 "높은 곳으로, 저지대·하천 근처는 피하기". 앱 안의 <span class="mono">30 m 고도 격자</span>로 가장 가까운 하천과 높이를 비교합니다.'},
+  {t0:25,t1:29,text:'하천보다 10 m 이상 높고, 150 m 이상 떨어지고, 과거 침수 구역 밖이면 홍수 후보입니다. 고도를 묻느라 위치를 밖으로 보내지 않습니다.'},
+  {t0:29,t1:35,text:'이 후보들은 <b>"공식 지정 아님"</b>으로 따로 표시합니다. 공식 대피소 안내가 언제나 먼저입니다.'},
+],C.green);
+
+/* ---------- 9 · 오프라인 Q&A ---------- */
+S('qa','9 · 오프라인 질문',25,(lt)=>{
+  stepHud(lt,[[0,'STEP 1 · 노트북에서 답을 미리 생성','Muse Glimmer 30B · llama.cpp (오픈웨이트)'],[8,'STEP 2 · 검사를 통과한 답만 팩에','must_any · must_not · 숫자 금지 · 존댓말'],[15,'STEP 3 · 폰은 키워드로 고르기만','OfflineQa.answer(q, hazard)']]);
+  const y=h*.42;
+  const boxes=[[w*.06,'Muse Glimmer 30B','의도 × 재난 × 한/영',C.purple],[w*.36,'자동 검사 + 사람 검토','36개 통과',C.green],[w*.66,'폰 (오프라인)','"엘리베이터 타도 돼요?"',C.blue]];
+  boxes.forEach((b,i)=>{ const a=E(lt,.5+i*6,.8); if(a<=0) return; A(a); box(b[0],y-h*.08,w*.27,h*.16,14,C.panel,b[3],1.6);
+    T(b[1],b[0]+w*.135,y-h*.03,Math.round(h*.022),b[3],'center',700); T(b[2],b[0]+w*.135,y+h*.03,Math.round(h*.019),C.ink,'center',500);
+    if(i>0) arrow(b[0]-w*.03,y,b[0]-4,y,C.muted,2); A(1); });
+  if(lt>=17){ A(E(lt,17,.8)); T('→ "엘리베이터를 이용하지 마세요. 계단으로 건물 밖으로…"',w*.79,y+h*.13,Math.round(h*.017),C.blue,'center',600); A(1); }
+  if(lt>=10){ const by=h*.72; A(E(lt,10,.8));
+    T('안전 질문 23개 채점',w*.5,by-h*.06,Math.round(h*.02),C.muted,'center',600);
+    box(w*.25,by,w*.5*(8/23)*eo(ap(lt,10,1.5)),h*.04,6,C.red); T('폰용 1B 모델 8/23 — "운전해도 돼요" 같은 위험한 답',w*.25,by+h*.07,Math.round(h*.018),C.red,'left',600);
+    box(w*.25,by+h*.1,w*.5*eo(ap(lt,11,1.5)),h*.04,6,C.green); T('Muse Glimmer 23/23',w*.25,by+h*.17,Math.round(h*.018),C.green,'left',700); A(1); }
+},[
+  {t0:0,t1:8,text:'"엘리베이터 타도 돼요?" 같은 질문에도 오프라인으로 답해야 합니다. 그런데 폰에서 모델을 돌리지는 않습니다.'},
+  {t0:8,t1:15,text:'노트북에서 <span class="mono">Muse Glimmer</span>(오픈웨이트)로 답을 미리 만들고, 금지 표현·지어낸 숫자·존댓말을 자동 검사한 뒤 사람이 한 번 더 봅니다.'},
+  {t0:15,t1:20,text:'폰은 질문의 키워드로 <b>미리 검사된 답</b>을 고르기만 합니다. 한국어와 영어 답을 함께 보여 줍니다.'},
+  {t0:20,t1:25,text:'왜 폰용 작은 모델을 안 썼냐면: 1B 모델은 23개 중 8개만 맞혔고, 지진 때 운전해도 된다고 답했습니다.'},
+],C.purple);
+
+/* ---------- 10 · 정리 ---------- */
+S('summary','10 · 정리',15,(lt)=>{
+  title('계산은 평소에, 위급할 때는 따라가기만', lt, C.ink);
+  const cols=[[w*.08,'평소 (온라인 · 백그라운드)',C.green,['경로 트리 6개 → 팩 10 MB','생활 반경 학습 (폰 안에서)','Muse Spark 계획 + 검증','매뉴얼 기준 후보 찾기']],
+              [w*.54,'위급할 때 (오프라인)',QUAKE,['가장 가까운 교차점 찾기','next 포인터 따라가기 ≈ 1 ms','미리 만든 계획·후보 표시','미리 검사된 답 고르기']]];
+  cols.forEach((c,i)=>{ const a=E(lt,.6+i*1.2,.8); if(a<=0) return; A(a);
+    box(c[0],h*.22,w*.38,h*.6,16,C.panel,c[2],1.6); T(c[1],c[0]+w*.19,h*.28,Math.round(h*.026),c[2],'center',700);
+    c[3].forEach((t,k)=>{ A(a*E(lt,1.5+i*1.2+k*.6,.5)); T('· '+t,c[0]+w*.03,h*(.37+k*.1),Math.round(h*.022),C.ink,'left',500); }); A(1); });
+  A(E(lt,9,1)); T('SafeRoute · 서울 MVP · Meta Global AI Developer Hackathon',w*.5,h*.9,Math.round(h*.018),C.faint,'center',500); A(1);
+},[
+  {t0:0,t1:7,text:'정리하면, 무거운 계산과 통신은 모두 <b>평소에</b> 끝내 둡니다.'},
+  {t0:7,t1:15,text:'위급할 때는 미리 만든 길을 <b>따라가기만</b> 합니다. 그래서 통신이 끊겨도, 1 ms 안에 방향이 나옵니다.'},
+],C.green);

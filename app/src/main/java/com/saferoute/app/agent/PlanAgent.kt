@@ -68,14 +68,14 @@ class PlanAgent(
                         val s = r.guidance.shelter
                         seen += s.id
                         if (h == hazard) oracleId = s.id
-                        JSONObject().put("shelter_id", s.id).put("name", s.name)
+                        JSONObject().put("shelter_id", s.id).put("name", s.name).put("name_en", s.nameEn)
                             .put("walk_m", r.guidance.distanceM).put("walk_min", r.guidance.walkMinutes)
                             .put("may_be_locked_at_night", s.mayLock)
                             .apply {
                                 r.guidance.lockWarning?.alternative?.let { a ->
                                     seen += a.shelter.id
                                     put("night_alternative", JSONObject().put("shelter_id", a.shelter.id)
-                                        .put("name", a.shelter.name).put("walk_m", a.distanceM).put("walk_min", a.walkMinutes))
+                                        .put("name", a.shelter.name).put("name_en", a.shelter.nameEn).put("walk_m", a.distanceM).put("walk_min", a.walkMinutes))
                                 }
                             }
                     }
@@ -90,7 +90,7 @@ class PlanAgent(
                     .sortedBy { it.second }.take(k)
                 near.forEach { seen += it.first.id }
                 JSONObject().put("note", "straight-line distance, not walking").put("shelters", JSONArray(near.map { (s, d) ->
-                    JSONObject().put("shelter_id", s.id).put("name", s.name).put("straight_m", d.toInt())
+                    JSONObject().put("shelter_id", s.id).put("name", s.name).put("name_en", s.nameEn).put("straight_m", d.toInt())
                 }))
             }
             "get_guideline" -> db.rules().first { it.hazard == args.getString("hazard") }.let {
@@ -166,7 +166,7 @@ class PlanAgent(
             "If the primary may be locked at night, use its night_alternative as the backup. " +
             "Use get_shelters only to pick a backup and a family meeting point. Never name a place, id or " +
             "distance that a tool did not return. Follow get_guideline for the hazard. When done, call " +
-            "save_plan exactly once. Notes must be short and action-first: notes_ko in Korean and notes_en with the same content in English."
+            "save_plan exactly once. Notes must be short and action-first: notes_ko in Korean and notes_en with the same content in English, using name_en for place names."
 
         val TOOLS: JSONArray by lazy {
             fun fn(name: String, desc: String, props: JSONObject, required: List<String>) = JSONObject()

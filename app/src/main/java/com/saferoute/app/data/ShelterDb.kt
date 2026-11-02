@@ -17,7 +17,12 @@ data class Shelter(
     val mayLock: Boolean = false,
     /** Reading aid next to the unchanged official name (pipeline/romanize.py). */
     val nameEn: String = "",
+    /** Why a guidance-matching (non-designated) candidate qualifies; empty for official shelters. */
+    val noteKo: String = "",
+    val noteEn: String = "",
 ) {
+    val isManualCandidate: Boolean get() = facility.startsWith("manual_")
+
     /** "공식 이름 · English" for display; the official name alone when there is no English. */
     val bilingual: String get() = if (nameEn.isBlank() || nameEn == name) name else "$name · $nameEn"
 }
@@ -46,35 +51,35 @@ class ShelterDb(context: Context, assetName: String) {
     }
 
     fun shelter(idx: Int): Shelter? = db.rawQuery(
-        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en FROM shelter WHERE idx = ?",
+        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en, note_ko, note_en FROM shelter WHERE idx = ?",
         arrayOf(idx.toString()),
     ).use { c ->
         if (!c.moveToFirst()) null
         else Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3), c.getDouble(4),
-            c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: "")
+            c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: "", c.getString(10) ?: "", c.getString(11) ?: "")
     }
 
     /** Shelters suitable for [hazard] according to the pack's rule table (destination candidates). */
     fun suitableFor(hazard: String): List<Shelter> = db.rawQuery(
-        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en FROM shelter WHERE ',' || hazards || ',' LIKE ?",
+        "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en, note_ko, note_en FROM shelter WHERE ',' || hazards || ',' LIKE ?",
         arrayOf("%,$hazard,%"),
     ).use { c ->
         buildList {
             while (c.moveToNext()) add(Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3),
-                c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: ""))
+                c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: "", c.getString(10) ?: "", c.getString(11) ?: ""))
         }
     }
 
     /** Suitable shelters inside a lat/lon box (map markers). */
     fun suitableIn(hazard: String, minLat: Double, minLon: Double, maxLat: Double, maxLon: Double): List<Shelter> =
         db.rawQuery(
-            "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en FROM shelter " +
+            "SELECT idx, id, name, lat, lon, facility, address, source, may_lock, name_en, note_ko, note_en FROM shelter " +
                 "WHERE ',' || hazards || ',' LIKE ? AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?",
             arrayOf("%,$hazard,%", "$minLat", "$maxLat", "$minLon", "$maxLon"),
         ).use { c ->
             buildList {
                 while (c.moveToNext()) add(Shelter(c.getInt(0), c.getString(1), c.getString(2), c.getDouble(3),
-                    c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: ""))
+                    c.getDouble(4), c.getString(5), c.getString(6) ?: "", c.getString(7), c.getInt(8) == 1, c.getString(9) ?: "", c.getString(10) ?: "", c.getString(11) ?: ""))
             }
         }
 

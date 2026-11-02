@@ -1,5 +1,7 @@
 package com.saferoute.app.alert
 
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.semantics.contentDescription
@@ -68,6 +70,9 @@ import kotlin.math.cos
 private val HAZARD_COLORS = mapOf("earthquake" to Color(0xFFB3261E), "flood" to Color(0xFF0B57D0))
 private val ME_COLOR = Color(0xFF212121)
 private val ALT_COLOR = Color(0xFFE0A100)
+private val MANUAL_COLOR = Color(0xFF6A3FA0)
+private val BACKUP_COLOR = Color(0xFF00897B)
+private val MEET_COLOR = Color(0xFF2E7D32)
 private val HAZARD_LABELS = mapOf("earthquake" to "지진", "flood" to "홍수")
 /**
  * The demo-week button wipes the learned history before inserting fake visits: only on emulators,
@@ -267,7 +272,8 @@ private fun SettingRow(label: String, labelEn: String, value: Boolean, onChange:
 data class LearnedPlaceUi(val label: String, val days: Int, val planned: List<Pair<String, Boolean>>)
 
 data class LearnUi(val visits: Int = 0, val places: List<LearnedPlaceUi> = emptyList(), val running: Boolean = false, val status: String? = null,
-                   val total: Int = 0)
+                   val total: Int = 0, val candidateTiles: Int = 0, val candidates: Int = 0,
+                   val route: List<com.saferoute.app.learn.RouteStop> = emptyList())
 
 /** Regular places learned on the device and whether each hazard already has a prepared plan. */
 @Composable
@@ -289,6 +295,30 @@ private fun LearnSection(ui: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: ()
             }
         }
         ui.status?.let { Text(it, fontSize = 13.sp) }
+        Spacer(Modifier.height(10.dp))
+        Bi("매뉴얼 기준 후보: 생활 반경 지도 ${ui.candidateTiles}칸 검토 · 후보 ${ui.candidates}곳",
+            "Guidance-matching places: ${ui.candidateTiles} map tiles around your places · ${ui.candidates} found", 13.sp)
+        RouteSection(ui.route)
+    }
+}
+
+/** Today's route: for each place passed, the nearest official shelter and guidance-matching place. */
+@Composable
+private fun RouteSection(stops: List<com.saferoute.app.learn.RouteStop>) {
+    Spacer(Modifier.height(10.dp))
+    Bi("오늘 다닌 경로 (${stops.size}곳)", "Today's route (${stops.size} places)", 15.sp, FontWeight.Bold)
+    if (stops.isEmpty()) Bi("오늘 기록된 장소가 없어요.", "No places recorded today.", 13.sp)
+    stops.takeLast(8).reversed().forEach { s ->
+        Column(Modifier.padding(top = 6.dp).testTag("route_stop")) {
+            Text(com.saferoute.app.learn.RouteReview.clock(s.timeMs) + if (s.outsideCity) " · 서울 밖 Outside Seoul" else "",
+                fontSize = 12.sp, color = Color.Gray)
+            s.hazards.forEach { h ->
+                val label = "${HAZARD_LABELS[h.hazard] ?: h.hazard} ${HAZARD_LABELS_EN[h.hazard] ?: ""}"
+                Text("$label · 공식 Official: ${h.official ?: "–"} ${h.officialM?.let { "$it m" } ?: ""}", fontSize = 13.sp)
+                Text("   매뉴얼 Guidance: ${h.manual ?: "없음 none yet"} ${h.manualM?.let { "$it m" } ?: ""}", fontSize = 13.sp,
+                    color = MANUAL_COLOR)
+            }
+        }
     }
 }
 
@@ -343,7 +373,7 @@ private fun QaSection(ui: QaUi, onAsk: (String) -> Unit, onMic: () -> Unit, acce
 
 /** Shown on the alert screen when a plan for this place was prepared earlier (offline read). */
 data class PreparedPlanUi(val placeLabel: String, val notesKo: String, val backupName: String?, val meetingName: String?,
-                          val notesEn: String? = null)
+                          val notesEn: String? = null, val marks: List<MapMark> = emptyList())
 
 data class PrepareUi(val running: Boolean = false, val log: List<String> = emptyList(), val status: String? = null)
 
@@ -353,9 +383,9 @@ private fun PreparedPlanCard(p: PreparedPlanUi, accent: Color) {
         .testTag("prepared_plan")) {
         Bi("미리 준비한 계획 · ${placeLabelBi(p.placeLabel)}", "Prepared plan", 15.sp, FontWeight.Bold, accent)
         Text(p.notesKo, fontSize = 16.sp)
-        p.notesEn?.let { Text(it, fontSize = 13.sp, color = Color.DarkGray) }
-        p.backupName?.let { Text("예비 대피소 Backup: $it", fontSize = 14.sp) }
-        p.meetingName?.let { Text("가족 재회 지점 Family meeting point: $it", fontSize = 14.sp) }
+        Text(p.notesEn ?: "(English notes are added when this plan is refreshed online.)", fontSize = 13.sp, color = Color.DarkGray)
+        p.backupName?.let { Text("● 예비 대피소 Backup: $it", fontSize = 14.sp, color = BACKUP_COLOR) }
+        p.meetingName?.let { Text("● 가족 재회 지점 Family meeting point: $it", fontSize = 14.sp, color = MEET_COLOR) }
     }
 }
 
@@ -421,6 +451,20 @@ private fun GuidanceView(g: Guidance, headingDeg: Float?, accent: Color, stepFre
             13.sp, color = Color(0xFF8A5A00))
         if (stepFree) Text("계단 없는 경로 기준 · Step-free route", fontSize = 12.sp, color = Color.Gray)
         g.lockWarning?.let { LockWarningCard(it) }
+        g.manual?.takeIf { it.shelter.idx != g.shelter.idx }?.let { ManualCard(it, stepFree) }
+    }
+}
+
+/** Beyond official shelters: the nearest place that meets the official guidance (never shown as designated). */
+@Composable
+private fun ManualCard(m: Alternative, stepFree: Boolean) {
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp).background(Color(0xFFF1ECF8)).padding(12.dp).testTag("manual_candidate")) {
+        Bi("매뉴얼 기준 가까운 안전 장소 · 공식 지정 아님", "Nearest place meeting the official guidance · not designated",
+            14.sp, FontWeight.Bold, MANUAL_COLOR)
+        Text("${m.shelter.bilingual} · ${m.distanceM} m · 도보 약 ${m.walkMinutes}분 / about ${m.walkMinutes} min",
+            fontSize = 15.sp)
+        if (m.shelter.noteKo.isNotBlank()) Bi(m.shelter.noteKo, m.shelter.noteEn, 12.sp, color = Color.DarkGray)
+        if (stepFree) Text("계단이 포함될 수 있어요 · May include stairs", fontSize = 12.sp, color = Color(0xFF8A5A00))
     }
 }
 
@@ -486,7 +530,21 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
                 if (s.idx != g.shelter.idx && s.idx != alt?.idx)
                     drawCircle(accent.copy(alpha = 0.45f), radius = 9f, center = p(s.lat to s.lon), style = Stroke(width = 4f))
             }
-            alt?.let { drawCircle(ALT_COLOR, radius = 16f, center = p(it.lat to it.lon)) }
+            // Every alternative place gets a dot and a short tag so it can be told apart without the legend.
+            val tagPaint = android.graphics.Paint().apply { isAntiAlias = true; textSize = 28f; isFakeBoldText = true }
+            fun mark(c: Color, at: Pair<Double, Double>, tag: String) {
+                val o = p(at)
+                drawCircle(Color.White, radius = 18f, center = o)
+                drawCircle(c, radius = 14f, center = o)
+                tagPaint.color = c.toArgb()
+                drawContext.canvas.nativeCanvas.drawText(tag, o.x + 20f, o.y - 12f, tagPaint)
+            }
+            alt?.let { mark(ALT_COLOR, it.lat to it.lon, "대안 If locked") }
+            g.manual?.shelter?.let { mark(MANUAL_COLOR, it.lat to it.lon, "매뉴얼 Guidance") }
+            g.marks.forEach { m ->
+                if (m.kind == "backup") mark(BACKUP_COLOR, m.lat to m.lon, "예비 Backup")
+                else mark(MEET_COLOR, m.lat to m.lon, "재회 Meet")
+            }
             val path = Path().apply { pts.forEachIndexed { i, ll -> val o = p(ll); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
             drawPath(path, accent, style = Stroke(width = 9f))
             // The route ends at the street node nearest the shelter; show the last few metres too.
@@ -503,6 +561,9 @@ private fun RouteMap(g: Guidance, accent: Color, fix: Fix?) {
             dot(ME_COLOR, "나 You"); dot(accent, "목적지 Destination")
             withStyle(SpanStyle(color = accent.copy(alpha = 0.6f))) { append("○") }; append(" 대피소 Shelters  ")
             if (alt != null) dot(ALT_COLOR, "잠김 시 대안 If locked")
+            if (g.manual != null) dot(MANUAL_COLOR, "매뉴얼 기준 Guidance match")
+            if (g.marks.any { it.kind == "backup" }) dot(BACKUP_COLOR, "예비 Backup")
+            if (g.marks.any { it.kind == "meeting" }) dot(MEET_COLOR, "가족 재회 Family meeting")
         }
         Text(legend, fontSize = 11.sp, color = Color.DarkGray,
             modifier = Modifier.align(Alignment.TopStart).background(Color(0xCCFFFFFF)).padding(horizontal = 6.dp, vertical = 2.dp))

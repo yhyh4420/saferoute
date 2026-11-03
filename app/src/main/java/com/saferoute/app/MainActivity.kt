@@ -98,6 +98,8 @@ class MainActivity : ComponentActivity() {
                 val rules = remember { db.rules() }
                 var withChild by remember { mutableStateOf(prefs.getBoolean("withchild", false)) }
                 var fieldLogOn by remember { mutableStateOf(g.fieldLog.enabled) }
+                fun ignoringBattery() = getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+                var backgroundAllowed by remember { mutableStateOf(ignoringBattery()) }
                 var fieldLogLines by remember { mutableStateOf(g.fieldLog.lines()) }
                 var prepareUi by remember { mutableStateOf(PrepareUi()) }
                 var qaUi by remember(hazard) {
@@ -209,6 +211,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                         minute++ // re-check on return to the screen, then every minute
+                        backgroundAllowed = ignoringBattery() // e.g. back from the battery dialog
                         while (true) { kotlinx.coroutines.delay(60_000); minute++ }
                     }
                 }
@@ -246,6 +249,10 @@ class MainActivity : ComponentActivity() {
                     onWithChild = { withChild = it; prefs.edit().putBoolean("withchild", it).apply() },
                     onCall119 = { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:119"))) },
                     locationOff = locationOff,
+                    backgroundAllowed = backgroundAllowed,
+                    onAllowBackground = {
+                        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                    },
                     fieldLog = fieldLogOn,
                     fieldLogLines = fieldLogLines,
                     onFieldLog = { g.fieldLog.enabled = it; fieldLogOn = it },

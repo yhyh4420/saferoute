@@ -129,6 +129,9 @@ fun AlertScreen(
     fieldLog: Boolean = false,
     fieldLogLines: Int = 0,
     onFieldLog: (Boolean) -> Unit = {},
+    /** Battery optimisation exempt: the 15-min background learning actually runs. */
+    backgroundAllowed: Boolean = true,
+    onAllowBackground: () -> Unit = {},
 ) {
     val rule = rules.firstOrNull { it.hazard == hazard }
     val accent = HAZARD_COLORS[hazard] ?: Color.DarkGray
@@ -208,7 +211,7 @@ fun AlertScreen(
         }
 
         SettingsSection(stepFree, onStepFree, withChild, onWithChild, fix, places, onPlace, prepare, onPrepare,
-            learn, onSimulateWeek, onLearnNow, fieldLog, fieldLogLines, onFieldLog)
+            learn, onSimulateWeek, onLearnNow, fieldLog, fieldLogLines, onFieldLog, backgroundAllowed, onAllowBackground)
     }
 }
 
@@ -228,6 +231,7 @@ private fun SettingsSection(
     fix: Fix?, places: List<Fix>, onPlace: (Fix) -> Unit, prepare: PrepareUi, onPrepare: () -> Unit,
     learn: LearnUi, onSimulateWeek: () -> Unit, onLearnNow: () -> Unit,
     fieldLog: Boolean, fieldLogLines: Int, onFieldLog: (Boolean) -> Unit,
+    backgroundAllowed: Boolean, onAllowBackground: () -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
@@ -240,6 +244,13 @@ private fun SettingsSection(
             Text(if (open) "  ▲" else "  ▼", fontSize = 15.sp)
         }
         if (open) {
+            if (!backgroundAllowed) {
+                Button(onClick = onAllowBackground, modifier = Modifier.fillMaxWidth().testTag("allow_background")) {
+                    Text("백그라운드 학습 허용 (배터리 최적화 해제)\nAllow background learning (battery)", fontSize = 14.sp)
+                }
+                Bi("허용하지 않으면 안드로이드가 생활 반경 학습·대피 장소 찾기를 몇 시간씩 미룰 수 있어요.",
+                    "Otherwise Android may delay learning your places and finding shelters for hours.", 12.sp, color = Color.DarkGray)
+            } else Bi("✓ 백그라운드 학습 허용됨", "✓ Background learning allowed", 12.sp, color = Color(0xFF2E7D32))
             SettingRow("계단 없는 경로", "Step-free route ($STEP_FREE_MPS m/s)", stepFree, onStepFree, "stepfree")
             SettingRow("아이와 함께 (계획에 반영)", "With a child (used in plans)", withChild, onWithChild, "withchild")
             SettingRow("현장 테스트 기록 (폰에만 저장 · ${fieldLogLines}줄)", "Field-test log (on this phone only · $fieldLogLines lines)",

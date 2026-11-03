@@ -184,7 +184,7 @@ S('d_plan', '3 · Demo · Prepared plan', 15, (lt) => {
 const SHELTERS = [NET.id(4, 2), NET.id(15, 3), NET.id(9, 9), NET.id(19, 10)];
 S('h_tree', '4 · Before any alert', 13, (lt) => {
   const bx = [w * .06, h * .16, w * .88, h * .6], tr = tree(SHELTERS);
-  stepHud(lt, [[0, 'BUILD TIME · once per city', 'multi-source shortest paths, one tree per disaster']]);
+  stepHud(lt, [[0, 'OFFICIAL SHELTERS · whole city · once', 'multi-source shortest paths, one tree per disaster · 10 MB']]);
   streets(bx, .5);
   const wave = ap(lt, 1.2, 8) * 14;
   NET.nodes.forEach((n, k) => {
@@ -198,7 +198,7 @@ S('h_tree', '4 · Before any alert', 13, (lt) => {
   });
   SHELTERS.forEach(s => { const p = P(NET.nodes[s], bx); glow(p[0], p[1], h * .04, 'rgba(67,214,160,.5)', .8); dot(p[0], p[1], h * .014, C.green); });
   A(E(lt, 9.5, 1)); T('every street corner knows its next step', w * .5, h * .82, big(.032), C.ink, 'center', 700); A(1);
-}, [{ t0: 0, t1: 13, text: 'How is it that fast? Before any alert, we compute, for every street corner in Seoul, the next step towards the nearest right shelter — one tree per disaster.' }], C.blue);
+}, [{ t0: 0, t1: 13, text: 'How is it that fast? Routes to the official shelters are computed once for the whole city — a ten-megabyte pack — so every street corner already knows its next step.' }], C.blue);
 
 S('h_follow', '4 · During the alert', 10, (lt) => {
   const bx = [w * .06, h * .16, w * .88, h * .56], tr = tree(SHELTERS);
@@ -217,27 +217,29 @@ S('h_follow', '4 · During the alert', 10, (lt) => {
 }, [{ t0: 0, t1: 10, text: 'During an alert the phone only follows those arrows. No search, no server, no model: about one millisecond.' }], C.red);
 
 S('h_background', '4 · On ordinary days', 13, (lt) => {
-  stepHud(lt, [[0, 'EVERY 15 MIN · in the background', 'learn places → plan while online → validate']]);
-  // day timeline with learned places
-  const y = h * .36, x0 = w * .08, x1 = w * .92;
-  A(E(lt, .2, .6)); seg(x0, y, x1, y, C.line, 2); A(1);
-  ['home', 'station', 'office', 'park', 'home'].forEach((n, i) => {
-    const x = lerp(x0, x1, (i + .5) / 5); A(E(lt, .6 + i * .5, .5)); dot(x, y, h * .014, C.blue); T(n, x, y - h * .05, big(.022), C.muted, 'center', 500); A(1);
+  stepHud(lt, [[0, 'YOUR PLACES ONLY · in the background', 'learn places → look around them → plan while online → validate']]);
+  const bx = [w * .04, h * .16, w * .92, h * .6];
+  streets(bx, .25);
+  // learned places (home, station, office) with a search radius; everything outside stays dark
+  const places = [[NET.id(3, 8), 'home', 1], [NET.id(9, 6), 'station', 2.2], [NET.id(15, 4), 'office', 3.4]];
+  places.forEach(([n, name, t0]) => {
+    const p = P(NET.nodes[n], bx), r = h * .13 * E(lt, t0, 1);
+    A(.9 * E(lt, t0, .6)); ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(91,156,255,.08)'; ctx.fill();
+    ctx.setLineDash([8, 8]); ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+    dot(p[0], p[1], h * .014, C.blue); T(name, p[0], p[1] - h * .04, big(.024), C.ink, 'center', 600); A(1);
+    // guidance-matching places found inside the circle only
+    const rr = RNG(n + 11);
+    for (let k = 0; k < 4; k++) {
+      const ang = rr() * Math.PI * 2, d = (.35 + rr() * .55) * h * .13, q = [p[0] + Math.cos(ang) * d, p[1] + Math.sin(ang) * d];
+      A(E(lt, t0 + 1.4 + k * .35, .4)); glow(q[0], q[1], h * .025, 'rgba(183,156,255,.5)', .8); dot(q[0], q[1], h * .008, C.purple); A(1);
+    }
   });
-  // agent with tools
-  const ax = w * .28, ay = h * .64;
-  A(E(lt, 3.5, .7)); box(ax - w * .12, ay - h * .07, w * .24, h * .14, 16, 'rgba(183,156,255,.12)', C.purple, 2);
-  T('Muse Spark agent', ax, ay, big(.03), C.purple, 'center', 700); A(1);
-  [['route_oracle', 4.5], ['get_shelters', 5.3], ['save_plan', 6.1]].forEach(([n, t0], i) => {
-    const tx = w * .52 + i * w * .14, ty = h * .58;
-    A(E(lt, t0, .5)); chip(tx - w * .065, ty - h * .025, w * .13, h * .05, 'rgba(91,156,255,.15)', n, C.blue, big(.02));
-    T('✓', tx, ty + h * .06, big(.03), C.green, 'center', 700); A(1);
-  });
-  A(E(lt, 7.5, .6)); const fx = w * .62, fy = h * .74;
-  chip(fx - w * .1, fy - h * .025, w * .2, h * .05, 'rgba(242,122,110,.15)', 'made-up shelter id', C.red, big(.02));
-  T('✕ rejected by the validator', fx + w * .12, fy, big(.024), C.red, 'left', 700); A(1);
-  A(E(lt, 10, .8)); T('plans are ready before you need them', w * .5, h * .84, big(.03), C.ink, 'center', 700); A(1);
-}, [{ t0: 0, t1: 13, text: 'On ordinary days it quietly learns where you go and prepares plans while online. The agent can only use verified tools, and anything it makes up is rejected.' }], C.purple);
+  A(E(lt, 5.2, .8)); T('only map tiles around your places are fetched', w * .5, h * .7, big(.028), C.purple, 'center', 600); A(1);
+  // agent prepares plans with verified tools
+  A(E(lt, 7.5, .6)); chip(w * .2, h * .755, w * .2, h * .05, 'rgba(183,156,255,.15)', 'Muse Spark agent → plan', C.purple, big(.02));
+  chip(w * .44, h * .755, w * .16, h * .05, 'rgba(67,214,160,.15)', 'verified tools ✓', C.green, big(.02));
+  chip(w * .64, h * .755, w * .18, h * .05, 'rgba(242,122,110,.15)', 'made-up place ✕', C.red, big(.02)); A(1);
+}, [{ t0: 0, t1: 13, text: 'On ordinary days it learns only the places you actually go. Around them, and only there, it looks for more safe places that match the official guidance, and prepares plans while online.' }], C.purple);
 
 // ---------- Part 5: hope ----------
 S('hope', '5 · Hope', 16, (lt) => {

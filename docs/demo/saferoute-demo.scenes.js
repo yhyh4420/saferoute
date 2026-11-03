@@ -8,33 +8,37 @@ artifact:
 // Colours keep one meaning: red = earthquake, blue = flood, green = safe place, yellow = warning, purple = agent/guidance.
 
 const RNG = (seed) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-// A deterministic abstract street network: jittered grid nodes with horizontal/vertical links.
-const NET = (() => {
-  const r = RNG(7), cols = 22, rows = 12, nodes = [], links = [];
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++)
-    nodes.push({ x: (i + .5 + (r() - .5) * .5) / cols, y: (j + .5 + (r() - .5) * .5) / rows, i, j });
-  const id = (i, j) => j * cols + i;
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    if (i < cols - 1 && r() > .08) links.push([id(i, j), id(i + 1, j)]);
-    if (j < rows - 1 && r() > .12) links.push([id(i, j), id(i, j + 1)]);
-  }
-  return { nodes, links, cols, rows, id };
-})();
-const P = (n, bx) => [bx[0] + n.x * bx[2], bx[1] + n.y * bx[3]];
+// Real Seoul: pack boundary, OSM Han river, major roads coarsened to ~350 m (seoul_geo.js, prepended at build).
+const NET = { nodes: SEOUL.nodes, links: SEOUL.links };
+function geoFit(bx) { const sc = Math.min(bx[2] / SEOUL.span[0], bx[3] / SEOUL.span[1]); return [bx[0] + (bx[2] - SEOUL.span[0] * sc) / 2, bx[1] + (bx[3] - SEOUL.span[1] * sc) / 2, sc]; }
+const P = (n, bx) => { const f = geoFit(bx); return [f[0] + n[0] * f[2], f[1] + n[1] * f[2]]; };
+// A box that zooms the map so that kmW kilometres span 90% of the width, centred on node c (scene-local zoom).
+function zoomBox(c, kmW, cy) { const sc = w * .9 / kmW, p = SEOUL.nodes[c]; return [w / 2 - p[0] * sc, h * (cy || .45) - p[1] * sc, SEOUL.span[0] * sc, SEOUL.span[1] * sc]; }
+function poly(pts, bx) { ctx.beginPath(); pts.forEach((q, k) => { const p = P(q, bx); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); }
 function streets(bx, alpha, col) {
-  A(alpha);
-  for (const [a, b] of NET.links) { const p = P(NET.nodes[a], bx), q = P(NET.nodes[b], bx); seg(p[0], p[1], q[0], q[1], col || '#5a6a86', 2); }
+  const sc = geoFit(bx)[2];
+  A(alpha); poly(SEOUL.ring, bx); ctx.closePath(); ctx.fillStyle = 'rgba(91,156,255,.035)'; ctx.fill(); ctx.strokeStyle = '#6b7c99'; ctx.lineWidth = 2; ctx.stroke();
+  // Han river: ~1 km wide band along the centreline, plus its water outline
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const r of SEOUL.river) { poly(r, bx); ctx.strokeStyle = 'rgba(64,110,190,.55)'; ctx.lineWidth = Math.max(6, sc * .9); ctx.stroke(); }
+  for (const r of SEOUL.water) { poly(r, bx); ctx.strokeStyle = 'rgba(91,156,255,.5)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.lineCap = 'butt';
+  for (const [a, b] of NET.links) { const p = P(NET.nodes[a], bx), q = P(NET.nodes[b], bx); seg(p[0], p[1], q[0], q[1], col || '#5a6a86', 1.3); }
   A(1);
 }
-// BFS distances over the network from a set of sources (the "tree" every node follows).
+// BFS over the road network from a set of sources (the "tree" every node follows); memoised per source set.
+const TREES = {};
 function tree(sources) {
+  const key = sources.join(','); if (TREES[key]) return TREES[key];
   const adj = NET.nodes.map(() => []);
   for (const [a, b] of NET.links) { adj[a].push(b); adj[b].push(a); }
   const dist = NET.nodes.map(() => Infinity), next = NET.nodes.map(() => -1), q = [];
   for (const s of sources) { dist[s] = 0; next[s] = s; q.push(s); }
-  while (q.length) { const u = q.shift(); for (const v of adj[u]) if (dist[v] === Infinity) { dist[v] = dist[u] + 1; next[v] = u; q.push(v); } }
-  return { dist, next };
+  for (let qi = 0; qi < q.length; qi++) { const u = q[qi]; for (const v of adj[u]) if (dist[v] === Infinity) { dist[v] = dist[u] + 1; next[v] = u; q.push(v); } }
+  let maxD = 0; for (const d of dist) if (d !== Infinity && d > maxD) maxD = d;
+  return (TREES[key] = { dist, next, maxD });
 }
+function pathTo(start, sources) { const tr = tree(sources), p = [start]; let c = start; while (tr.next[c] !== c && tr.next[c] >= 0 && p.length < 400) { c = tr.next[c]; p.push(c); } return p; }
 const FULL = () => [w * .04, h * .08, w * .92, h * .74];
 const big = (k) => Math.round(h * k);
 
@@ -43,7 +47,7 @@ S('commute', '1 · Every day', 7, (lt) => {
   const bx = FULL();
   streets(bx, .55 * E(lt, 0, 1.5));
   // commute route: from the left edge to the centre (the middle of Seoul)
-  const route = [NET.id(0, 9), NET.id(3, 9), NET.id(3, 7), NET.id(7, 7), NET.id(7, 5), NET.id(11, 5)];
+  const route = pathTo(SEOUL.west, [SEOUL.cityHall]);
   A(E(lt, .8, 1));
   for (let k = 0; k < route.length - 1; k++) { const p = P(NET.nodes[route[k]], bx), q = P(NET.nodes[route[k + 1]], bx); seg(p[0], p[1], q[0], q[1], C.blue, 4); }
   A(1);
@@ -57,7 +61,7 @@ S('commute', '1 · Every day', 7, (lt) => {
 S('alert', '1 · Alert', 10, (lt) => {
   const bx = FULL();
   streets(bx, .45);
-  const c = P(NET.nodes[NET.id(11, 5)], bx);
+  const c = P(NET.nodes[SEOUL.cityHall], bx);
   // alert pulses from where I am
   for (let k = 0; k < 4; k++) {
     const p = ((lt - .5 - k * .7) % 2.8) / 2.8;
@@ -181,19 +185,19 @@ S('d_plan', '3 · Demo · Prepared plan', 15, (lt) => {
 }, [{ t0: 0, t1: 15, text: 'And for the places I actually go, a Muse Spark agent prepared a plan ahead of time — a backup shelter and a family meeting point — plus places that match the official guidance nearby.' }], C.purple);
 
 // ---------- Part 4: how it works ----------
-const SHELTERS = [NET.id(4, 2), NET.id(15, 3), NET.id(9, 9), NET.id(19, 10)];
+const SHELTERS = SEOUL.shelters;
 S('h_tree', '4 · Before any alert', 13, (lt) => {
   const bx = [w * .06, h * .16, w * .88, h * .6], tr = tree(SHELTERS);
   stepHud(lt, [[0, 'OFFICIAL SHELTERS · whole city · once', 'multi-source shortest paths, one tree per disaster · 10 MB']]);
   streets(bx, .5);
-  const wave = ap(lt, 1.2, 8) * 14;
+  const wave = ap(lt, 1.2, 8) * (tr.maxD + 1);
   NET.nodes.forEach((n, k) => {
     const d = tr.dist[k]; if (d === Infinity) return;
     const p = P(n, bx);
     if (d <= wave) {
       const nx = P(NET.nodes[tr.next[k]], bx), a = clamp(wave - d, 0, 1);
-      A(a * .9); if (tr.next[k] !== k) arrow(p[0], p[1], lerp(p[0], nx[0], .55), lerp(p[1], nx[1], .55), C.blue, 1.6);
-      dot(p[0], p[1], h * .005, C.blue); A(1);
+      A(a * .9); if (tr.next[k] !== k) seg(p[0], p[1], nx[0], nx[1], C.blue, 1.8);
+      dot(p[0], p[1], h * .0028, C.blue); A(1);
     }
   });
   SHELTERS.forEach(s => { const p = P(NET.nodes[s], bx); glow(p[0], p[1], h * .04, 'rgba(67,214,160,.5)', .8); dot(p[0], p[1], h * .014, C.green); });
@@ -204,10 +208,9 @@ S('h_follow', '4 · During the alert', 10, (lt) => {
   const bx = [w * .06, h * .16, w * .88, h * .56], tr = tree(SHELTERS);
   stepHud(lt, [[0, 'ALERT TIME · on the phone', 'route = follow next[] until a shelter']]);
   streets(bx, .5);
-  NET.nodes.forEach((n, k) => { const p = P(n, bx); A(.35); dot(p[0], p[1], h * .004, C.blue); A(1); });
+  NET.nodes.forEach((n, k) => { const p = P(n, bx); A(.3); dot(p[0], p[1], h * .0025, C.blue); A(1); });
   SHELTERS.forEach(s => { const p = P(NET.nodes[s], bx); dot(p[0], p[1], h * .014, C.green); });
-  let cur = NET.id(13, 7); const path = [cur];
-  while (tr.next[cur] !== cur && path.length < 40) { cur = tr.next[cur]; path.push(cur); }
+  const path = pathTo(SEOUL.mapo, SHELTERS);
   const prog = es(ap(lt, 1.5, 3)) * (path.length - 1), k = Math.min(path.length - 2, Math.floor(prog));
   for (let i = 0; i < Math.floor(prog); i++) { const p = P(NET.nodes[path[i]], bx), q = P(NET.nodes[path[i + 1]], bx); seg(p[0], p[1], q[0], q[1], C.red, 5); }
   const pt = mv(P(NET.nodes[path[k]], bx), P(NET.nodes[path[k + 1]], bx), prog - k);
@@ -218,19 +221,19 @@ S('h_follow', '4 · During the alert', 10, (lt) => {
 
 S('h_background', '4 · On ordinary days', 13, (lt) => {
   stepHud(lt, [[0, 'YOUR PLACES ONLY · in the background', 'learn places → look around them → plan while online → validate']]);
-  const bx = [w * .04, h * .16, w * .92, h * .6];
-  streets(bx, .25);
+  const bx = zoomBox(SEOUL.mapo, 24, .47);
+  streets(bx, .35);
   // learned places (home, station, office) with a search radius; everything outside stays dark
-  const places = [[NET.id(3, 8), 'home', 1], [NET.id(9, 6), 'station', 2.2], [NET.id(15, 4), 'office', 3.4]];
+  const places = [[SEOUL.west, 'home', 1], [SEOUL.mapo, 'station', 2.2], [SEOUL.cityHall, 'office', 3.4]];
   places.forEach(([n, name, t0]) => {
-    const p = P(NET.nodes[n], bx), r = h * .13 * E(lt, t0, 1);
+    const p = P(NET.nodes[n], bx), r = geoFit(bx)[2] * 1.6 * E(lt, t0, 1);
     A(.9 * E(lt, t0, .6)); ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(91,156,255,.08)'; ctx.fill();
     ctx.setLineDash([8, 8]); ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
     dot(p[0], p[1], h * .014, C.blue); T(name, p[0], p[1] - h * .04, big(.024), C.ink, 'center', 600); A(1);
     // guidance-matching places found inside the circle only
     const rr = RNG(n + 11);
     for (let k = 0; k < 4; k++) {
-      const ang = rr() * Math.PI * 2, d = (.35 + rr() * .55) * h * .13, q = [p[0] + Math.cos(ang) * d, p[1] + Math.sin(ang) * d];
+      const ang = rr() * Math.PI * 2, d = (.35 + rr() * .55) * geoFit(bx)[2] * 1.6, q = [p[0] + Math.cos(ang) * d, p[1] + Math.sin(ang) * d];
       A(E(lt, t0 + 1.4 + k * .35, .4)); glow(q[0], q[1], h * .025, 'rgba(183,156,255,.5)', .8); dot(q[0], q[1], h * .008, C.purple); A(1);
     }
   });
@@ -246,7 +249,7 @@ S('hope', '5 · Hope', 16, (lt) => {
   const bx = [w * .04, h * .06, w * .92, h * .78], tr = tree(SHELTERS);
   streets(bx, .3 + .35 * E(lt, 0, 6));
   const r = RNG(3);
-  for (let k = 0; k < 70; k++) {
+  for (let k = 0; k < 160; k++) {
     const n = Math.floor(r() * NET.nodes.length); if (tr.dist[n] === Infinity) continue;
     const p = P(NET.nodes[n], bx), nx = P(NET.nodes[tr.next[n]], bx), a = E(lt, .5 + r() * 5, 1);
     A(a * .9); dot(p[0], p[1], h * .006, C.ink); if (tr.next[n] !== n) arrow(p[0], p[1], lerp(p[0], nx[0], .6), lerp(p[1], nx[1], .6), C.green, 2); A(1);

@@ -50,3 +50,7 @@ google-services.json
 .kotlin/
 captures/
 *.log
+
+# demo raw recordings (large)
+docs/demo/raw/
+docs/demo/build/

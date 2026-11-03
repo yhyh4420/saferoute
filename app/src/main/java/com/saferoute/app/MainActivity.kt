@@ -333,6 +333,15 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onFailure = { prepareUi.copy(running = false, status = "오류 Error: ${it.message?.take(120)}") },
                                 )
+                                // "Plan this place" also looks for guidance-matching places around it (map tiles here only).
+                                val st = prepareUi.status
+                                prepareUi = prepareUi.copy(running = true, status = "$st\n주변 안전 장소 후보 찾는 중… · Searching places nearby…")
+                                val tiles = withContext(Dispatchers.IO) {
+                                    LearnWorker.exclusive { g.candidates.update(listOf(f.lat to f.lon)) }
+                                }
+                                planVersion++
+                                prepareUi = prepareUi.copy(running = false, status = "$st\n" + (tiles?.let { "지도 칸 ${it}개 검토 · $it map tiles checked" }
+                                    ?: "후보 찾기 건너뜀(다른 갱신 실행 중) · Skipped: another update is running"))
                             }
                         }
                     },

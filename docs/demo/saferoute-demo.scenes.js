@@ -14,6 +14,28 @@ function geoFit(bx) { const sc = Math.min(bx[2] / SEOUL.span[0], bx[3] / SEOUL.s
 const P = (n, bx) => { const f = geoFit(bx); return [f[0] + n[0] * f[2], f[1] + n[1] * f[2]]; };
 // A box that zooms the map so that kmW kilometres span 90% of the width, centred on node c (scene-local zoom).
 function zoomBox(c, kmW, cy) { const sc = w * .9 / kmW, p = SEOUL.nodes[c]; return [w / 2 - p[0] * sc, h * (cy || .45) - p[1] * sc, SEOUL.span[0] * sc, SEOUL.span[1] * sc]; }
+// "Me": a spot in the middle of Seoul (Dongdaemun) where the app's earthquake and flood routes point opposite ways.
+const ME_NODE = (() => { let b = 0, bd = 1e9; SEOUL.nodes.forEach((p, i) => { const d = (p[0] - DETAIL.me[0]) ** 2 + (p[1] - DETAIL.me[1]) ** 2; if (d < bd) { bd = d; b = i; } }); return b; })();
+// Camera: p=0 whole city (FULL box) → p=1 zoomed on DETAIL.me, kmW wide. Log-interpolated scale, linear centre.
+function camBox(p, kmW) {
+  const f = geoFit(FULL()), sc1 = f[2], sc2 = w * .9 / kmW;
+  const c1 = [(w / 2 - f[0]) / sc1, (h * .45 - f[1]) / sc1], c2 = DETAIL.me, e = es(clamp(p, 0, 1));
+  const sc = Math.exp(lerp(Math.log(sc1), Math.log(sc2), e)), c = [lerp(c1[0], c2[0], e), lerp(c1[1], c2[1], e)];
+  return [w / 2 - c[0] * sc, h * .45 - c[1] * sc, SEOUL.span[0] * sc, SEOUL.span[1] * sc];
+}
+// Every street (not only major roads) near me, fading in as the camera gets close.
+function detailStreets(bx, alpha) {
+  const sc = geoFit(bx)[2], a = alpha * clamp((sc - 150) / 300, 0, 1); if (a <= 0) return;
+  const f = geoFit(bx); A(a); ctx.strokeStyle = '#7a88a6'; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (const q of DETAIL.segs) { ctx.moveTo(f[0] + q[0] * f[2], f[1] + q[1] * f[2]); ctx.lineTo(f[0] + q[2] * f[2], f[1] + q[3] * f[2]); }
+  ctx.stroke(); A(1);
+}
+function routeLine(pts, bx, prog, col) {
+  const n = Math.max(1, Math.floor(prog * (pts.length - 1)));
+  A(1); ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+  for (let k = 0; k <= n; k++) { const p = P(pts[k], bx); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } ctx.stroke(); ctx.lineCap = 'butt';
+  return P(pts[n], bx);
+}
 function poly(pts, bx) { ctx.beginPath(); pts.forEach((q, k) => { const p = P(q, bx); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); }
 function streets(bx, alpha, col) {
   const sc = geoFit(bx)[2];
@@ -47,7 +69,7 @@ S('commute', '1 · Every day', 7, (lt) => {
   const bx = FULL();
   streets(bx, .55 * E(lt, 0, 1.5));
   // commute route: from the left edge to the centre (the middle of Seoul)
-  const route = pathTo(SEOUL.west, [SEOUL.cityHall]);
+  const route = pathTo(SEOUL.west, [ME_NODE]);
   A(E(lt, .8, 1));
   for (let k = 0; k < route.length - 1; k++) { const p = P(NET.nodes[route[k]], bx), q = P(NET.nodes[route[k + 1]], bx); seg(p[0], p[1], q[0], q[1], C.blue, 4); }
   A(1);
@@ -59,51 +81,50 @@ S('commute', '1 · Every day', 7, (lt) => {
 }, [{ t0: 0, t1: 7, text: 'Every morning I commute into the middle of Seoul.' }], C.blue);
 
 S('alert', '1 · Alert', 10, (lt) => {
-  const bx = FULL();
-  streets(bx, .45);
-  const c = P(NET.nodes[SEOUL.cityHall], bx);
-  // alert pulses from where I am
-  for (let k = 0; k < 4; k++) {
+  const bx = camBox(ap(lt, 4.5, 3.5), 2.2);
+  streets(bx, .45); detailStreets(bx, .55);
+  const c = P(DETAIL.me, bx);
+  for (let k = 0; k < 4; k++) {   // alert pulses from where I am
     const p = ((lt - .5 - k * .7) % 2.8) / 2.8;
     if (lt > .5 + k * .7 && p >= 0) { A((1 - p) * .7); ctx.beginPath(); ctx.arc(c[0], c[1], h * (.05 + p * .45), 0, Math.PI * 2); ctx.strokeStyle = C.red; ctx.lineWidth = 3; ctx.stroke(); A(1); }
   }
-  dot(c[0], c[1], h * .014, C.ink);
-  ctx.save(); A(E(lt, .4, .5)); boxR(w * .5 - w * .17, h * .1, w * .34, h * .09, C.red); A(1);
-  T('⚠  EARTHQUAKE ALERT', w * .5, h * .145, big(.04), '#fff', 'center', 700); ctx.restore(); A(1);
-  // signal bars dropping to none
+  glow(c[0], c[1], h * .04, 'rgba(255,255,255,.35)', 1); dot(c[0], c[1], h * .014, C.ink);
+  A(E(lt, 6.5, .8)); T('you · Dongdaemun', c[0], c[1] + h * .045, big(.024), C.muted, 'center', 600); A(1);
+  ctx.save(); A(E(lt, .4, .5)); boxR(w * .5 - w * .17, h * .06, w * .34, h * .09, C.red); A(1);
+  T('⚠  EARTHQUAKE ALERT', w * .5, h * .105, big(.04), '#fff', 'center', 700); ctx.restore(); A(1);
   const sx = w * .84, sy = h * .22, lost = E(lt, 3.6, 1.2);
   for (let b = 0; b < 4; b++) { const bh = h * (.03 + b * .025); A(1 - lost * (b > 0 ? 1 : .2)); box(sx + b * w * .022, sy - bh, w * .014, bh, 3, C.ink, null); A(1); }
   A(lost); T('No network', sx + w * .044, sy + h * .045, big(.032), C.red, 'center', 700); A(1);
-  A(E(lt, 6, 1)); T('Where do I go?', w * .5, h * .76, big(.065), C.ink, 'center', 700); A(1);
+  A(E(lt, 8, 1)); box(w * .5 - w * .15, h * .69, w * .3, h * .1, 16, 'rgba(12,15,22,.8)', null); T('Where do I go?', w * .5, h * .74, big(.06), C.ink, 'center', 700); A(1);
 }, [{ t0: 0, t1: 2.8, text: 'But one morning, an alert goes off.' }, { t0: 2.8, t1: 10, text: 'The network is jammed. And I realise I have no idea where to go.' }], C.red);
 function boxR(x, y, bw, bh, col) { box(x, y, bw, bh, 14, col, null); }
 
 S('depends', '1 · It depends', 13, (lt) => {
-  const bx = FULL();
-  streets(bx, .4);
-  const me = [w * .5, h * .5];
-  dot(me[0], me[1], h * .016, C.ink); T('you', me[0], me[1] + h * .045, big(.022), C.muted, 'center', 500);
-  // earthquake: open space (park) to the upper left
-  const park = [w * .24, h * .26], hill = [w * .78, h * .28], sub = [w * .82, h * .62];
-  A(E(lt, .6, .8)); box(park[0] - w * .08, park[1] - h * .07, w * .16, h * .14, 18, 'rgba(67,214,160,.18)', C.green, 2);
-  T('open space', park[0], park[1], big(.026), C.green, 'center', 600); A(1);
-  const pe = eo(ap(lt, 1, 2));
-  A(E(lt, 1, .6)); arrow(me[0], me[1], lerp(me[0], park[0] + w * .08, pe), lerp(me[1], park[1] + h * .05, pe), C.red, 5); A(1);
-  A(E(lt, 1.3, .8)); T('EARTHQUAKE', w * .33, h * .52, big(.03), C.red, 'center', 700); A(1);
-  // flood: up to high ground, away from the underground station
-  A(E(lt, 4.2, .8));
-  ctx.beginPath(); ctx.moveTo(hill[0] - w * .09, hill[1] + h * .08); ctx.lineTo(hill[0], hill[1] - h * .07); ctx.lineTo(hill[0] + w * .09, hill[1] + h * .08); ctx.closePath();
-  ctx.fillStyle = 'rgba(67,214,160,.18)'; ctx.fill(); ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.stroke();
-  T('high ground', hill[0], hill[1] + h * .04, big(.026), C.green, 'center', 600);
-  box(sub[0] - w * .06, sub[1] - h * .045, w * .12, h * .09, 12, 'rgba(242,122,110,.12)', C.red, 2);
-  T('underground', sub[0], sub[1], big(.022), C.red, 'center', 600);
-  seg(sub[0] - w * .05, sub[1] - h * .04, sub[0] + w * .05, sub[1] + h * .04, C.red, 3); A(1);
-  const pf = eo(ap(lt, 4.6, 2));
-  A(E(lt, 4.6, .6)); arrow(me[0], me[1], lerp(me[0], hill[0] - w * .05, pf), lerp(me[1], hill[1] + h * .07, pf), C.blue, 5); A(1);
-  A(E(lt, 4.9, .8)); T('FLOOD', w * .7, h * .5, big(.03), C.blue, 'center', 700); A(1);
-  // the number
-  A(E(lt, 8, 1)); T('1 in 3 people in Seoul', w * .5, h * .75, big(.05), C.ink, 'center', 700);
-  T('must start walking in a different direction (35.4%)', w * .5, h * .81, big(.026), C.muted, 'center', 500); A(1);
+  const bx = camBox(1, 2.2);
+  streets(bx, .45); detailStreets(bx, .55);
+  const me = P(DETAIL.me, bx), R = DETAIL.routes;
+  // earthquake: the app's real route to open space
+  if (lt > .8) {
+    const end = routeLine(R.earthquake.pts, bx, eo(ap(lt, .8, 2.2)), C.red);
+    const d = P(R.earthquake.dest, bx);
+    A(E(lt, 2.6, .6)); glow(d[0], d[1], h * .05, 'rgba(67,214,160,.45)', 1); dot(d[0], d[1], h * .014, C.green);
+    box(d[0] - w * .29, d[1] - h * .045, w * .26, h * .09, 12, 'rgba(12,15,22,.85)', C.red, 2);
+    T('EARTHQUAKE → open space', d[0] - w * .16, d[1] - h * .02, big(.024), C.red, 'center', 700);
+    T('Dongdaemun Fortress Park · ' + R.earthquake.m + ' m', d[0] - w * .16, d[1] + h * .02, big(.022), C.ink, 'center', 600); A(1);
+  }
+  // flood: the opposite way, away from anything underground
+  if (lt > 4.3) {
+    routeLine(R.flood.pts, bx, eo(ap(lt, 4.3, 2.4)), C.blue);
+    const d = P(R.flood.dest, bx);
+    A(E(lt, 6.4, .6)); glow(d[0], d[1], h * .05, 'rgba(67,214,160,.45)', 1); dot(d[0], d[1], h * .014, C.green);
+    box(d[0] + w * .03, d[1] - h * .045, w * .3, h * .09, 12, 'rgba(12,15,22,.85)', C.blue, 2);
+    T('FLOOD → away from underground', d[0] + w * .18, d[1] - h * .02, big(.024), C.blue, 'center', 700);
+    T('Seongdong Global Business H.S. · ' + R.flood.m + ' m', d[0] + w * .18, d[1] + h * .02, big(.022), C.ink, 'center', 600); A(1);
+  }
+  glow(me[0], me[1], h * .04, 'rgba(255,255,255,.35)', 1); dot(me[0], me[1], h * .014, C.ink);
+  A(E(lt, 8.2, 1)); box(w * .5 - w * .26, h * .03, w * .52, h * .12, 16, 'rgba(12,15,22,.88)', null);
+  T('Opposite directions from the same spot', w * .5, h * .07, big(.04), C.ink, 'center', 700);
+  T('1 in 3 people in Seoul: different first direction (35.4%)', w * .5, h * .118, big(.025), C.muted, 'center', 500); A(1);
 }, [{ t0: 0, t1: 6.6, text: 'The right answer depends on the disaster: open space for an earthquake, high ground for a flood.' },
     { t0: 6.6, t1: 13, text: 'For one in three people in Seoul, the first direction to walk is different.' }], C.yellow);
 
@@ -224,7 +245,7 @@ S('h_background', '4 · On ordinary days', 13, (lt) => {
   const bx = zoomBox(SEOUL.mapo, 24, .47);
   streets(bx, .35);
   // learned places (home, station, office) with a search radius; everything outside stays dark
-  const places = [[SEOUL.west, 'home', 1], [SEOUL.mapo, 'station', 2.2], [SEOUL.cityHall, 'office', 3.4]];
+  const places = [[SEOUL.west, 'home', 1], [SEOUL.mapo, 'station', 2.2], [ME_NODE, 'office', 3.4]];
   places.forEach(([n, name, t0]) => {
     const p = P(NET.nodes[n], bx), r = geoFit(bx)[2] * 1.6 * E(lt, t0, 1);
     A(.9 * E(lt, t0, .6)); ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(91,156,255,.08)'; ctx.fill();

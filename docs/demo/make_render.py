@@ -6,7 +6,7 @@ here = pathlib.Path(__file__).resolve().parent
 src = (here / "saferoute-demo.scenes.js").read_text()
 head_end = src.index("*/") + 2
 (here / "build").mkdir(exist_ok=True)
-(here / "build/saferoute-demo.scenes.js").write_text(src[:head_end] + "\n" + (here / "seoul_geo.js").read_text() + src[head_end:])
+(here / "build/saferoute-demo.scenes.js").write_text(src[:head_end] + "\n" + (here / "seoul_geo.js").read_text() + (here / "seoul_detail.js").read_text() + src[head_end:])
 subprocess.run(["python3", str(pathlib.Path.home() / ".claude/skills/learning-film/scripts/build.py"),
                 str(here / "build/saferoute-demo.scenes.js"), "--out-dir", str(here / "build")], check=True)
 s = (here / "build/saferoute-demo-standalone.html").read_text()

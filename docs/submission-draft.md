@@ -58,5 +58,5 @@ I didn't use Fireworks, Modal or Baseten. The demo narration used a separate TTS
 ## Before submitting
 - [x] Team name: SafeRoute
 - [x] YouTube (Unlisted): https://youtu.be/nZYXbii89hI
-- [ ] Paste 6, 9, 10, 11 (and 12) from this file
-- [ ] Tick the promotion consent; submit before 11/5 05:00 KST (deadline 11/5 11:00 KST)
+- [x] Pasted 6, 9, 10, 12 (the form has no field 11)
+- [x] Promotion consent ticked; SUBMITTED 2026-11-04 (edit link on the event page: "View Submission")

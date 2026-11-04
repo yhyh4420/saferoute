@@ -3,10 +3,12 @@
 # real phone recordings in the phone frame + fal.ai narration.  Output: docs/demo/build/saferoute-demo.mp4
 set -euo pipefail
 cd "$(dirname "$0")"
+# SCALE=2 → 3840x2160 (frames rendered at 4K; YouTube serves 4K uploads with a much higher bitrate, also at 1080p).
+SCALE=${SCALE:-2}
 FR=build/frames RAW=raw NAR=raw/narration OUT=build/saferoute-demo.mp4
 FPS=24 TOTAL=161
-# phone area in the 1920x1080 frame (PH in saferoute-demo.scenes.js)
-PX=450 PY=56 PW=392 PHH=840
+# phone area in the 1920x1080 frame (PH in saferoute-demo.scenes.js), scaled
+PX=$((450*SCALE)) PY=$((56*SCALE)) PW=$((392*SCALE)) PHH=$((840*SCALE))
 
 # scene start offsets (seconds), must match the scene durations in saferoute-demo.scenes.js
 declare -a BLOCKS=(1a 1b 1c 2 3a 3b 3c 3d 3e 4a 4b 4c 5)
@@ -22,7 +24,7 @@ fc="[0:v]format=yuv420p[base0];"
 last=base0
 for k in "${!CLIPS[@]}"; do
   set -- ${CLIPS[$k]}; name=$1 st=$2 len=$3 trim=$4; i=$((k+1))
-  fc+="[$i:v]trim=start=$trim,setpts=PTS-STARTPTS,fps=$FPS,scale=$PW:$PHH,tpad=stop_mode=clone:stop_duration=$len,trim=duration=$len,"
+  fc+="[$i:v]trim=start=$trim,setpts=PTS-STARTPTS,fps=$FPS,scale=$PW:$PHH:flags=lanczos,tpad=stop_mode=clone:stop_duration=$len,trim=duration=$len,"
   fc+="fade=in:st=0:d=0.4,fade=out:st=$(echo "$len-0.4" | bc):d=0.4,setpts=PTS+$st/TB[p$i];"
   fc+="[$last][p$i]overlay=$PX:$PY:enable='between(t,$st,$(echo "$st+$len" | bc))':eof_action=pass[base$i];"
   last=base$i
@@ -36,5 +38,5 @@ for k in "${!BLOCKS[@]}"; do fc+="[a$k]"; done
 fc+="amix=inputs=${#BLOCKS[@]}:normalize=0,apad,atrim=duration=$TOTAL,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000[aout]"
 
 ffmpeg "${args[@]}" -filter_complex "$fc" -map "[$last]" -map "[aout]" \
-  -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -r $FPS -c:a aac -b:a 192k -t $TOTAL -movflags +faststart "$OUT"
+  -c:v libx264 -preset slow -tune animation -crf 14 -x264-params "vbv-maxrate=60000:vbv-bufsize=120000" -pix_fmt yuv420p -r $FPS -c:a aac -b:a 192k -t $TOTAL -movflags +faststart "$OUT"
 echo "wrote $OUT ($(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT")s)"

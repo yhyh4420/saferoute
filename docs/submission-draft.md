@@ -7,7 +7,7 @@
 | 1 | Team Name | **(decide)** |
 | 3 | Track | Indie Developer |
 | 4 | Problem statement | Build for Your World |
-| 5 | Most viral X post | (link after posting — text below) |
+| 5 | Most viral X post | (left empty — not posting on X) |
 | 7 | Public GitHub repository | https://github.com/yhyh4420/saferoute |
 | 8 | 3-minute demo video | https://youtu.be/nZYXbii89hI (YouTube, unlisted) |
 
@@ -55,6 +55,5 @@ Not used (Fireworks, Modal, Baseten). The demo narration used a third-party TTS 
 ## Before submitting
 - [ ] Team name
 - [x] YouTube (Unlisted): https://youtu.be/nZYXbii89hI
-- [ ] Post on X, paste link in 5
 - [ ] Paste 6, 9, 10, 11 (and 12) from this file
 - [ ] Tick the promotion consent; submit before 11/5 05:00 KST (deadline 11/5 11:00 KST)

@@ -4,7 +4,7 @@
 
 | # | Field | Answer |
 |---|---|---|
-| 1 | Team Name | **(decide)** |
+| 1 | Team Name | SafeRoute |
 | 3 | Track | Indie Developer |
 | 4 | Problem statement | Build for Your World |
 | 5 | Most viral X post | (left empty — not posting on X) |
@@ -53,7 +53,7 @@ Not used (Fireworks, Modal, Baseten). The demo narration used a third-party TTS 
 > 🎥 https://youtu.be/nZYXbii89hI  💻 github.com/yhyh4420/saferoute
 
 ## Before submitting
-- [ ] Team name
+- [x] Team name: SafeRoute
 - [x] YouTube (Unlisted): https://youtu.be/nZYXbii89hI
 - [ ] Paste 6, 9, 10, 11 (and 12) from this file
 - [ ] Tick the promotion consent; submit before 11/5 05:00 KST (deadline 11/5 11:00 KST)

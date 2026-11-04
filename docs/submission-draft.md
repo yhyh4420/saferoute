@@ -9,7 +9,7 @@
 | 4 | Problem statement | Build for Your World |
 | 5 | Most viral X post | (link after posting — text below) |
 | 7 | Public GitHub repository | https://github.com/yhyh4420/saferoute |
-| 8 | 3-minute demo video | (YouTube unlisted link — file: docs/demo/build/saferoute-demo.mp4) |
+| 8 | 3-minute demo video | https://youtu.be/Mu_J3iWJPNE (YouTube, unlisted) |
 
 ## 6. Project Description
 Every morning I commute into the middle of Seoul. If an earthquake or flood alert went off on the way, the network could be jammed and I would not know where to go — and the right answer depends on the disaster: open space for an earthquake, high ground and nothing underground for a flood. Korean authorities ask citizens to learn the shelters around home, work and school in advance. Almost nobody does.
@@ -50,11 +50,11 @@ Not used (Fireworks, Modal, Baseten). The demo narration used a third-party TTS 
 > SafeRoute learns your own places, prepares a plan in the background, and answers in ~1 ms with no network.
 > Built with Muse Spark (agent), Muse Glimmer (open weights) and Muse Code for the Meta Global AI Developer Hackathon.
 > (add the organisers' official handles/hashtag if the event page gives them)
-> 🎥 <YouTube link>  💻 github.com/yhyh4420/saferoute
+> 🎥 https://youtu.be/Mu_J3iWJPNE  💻 github.com/yhyh4420/saferoute
 
 ## Before submitting
 - [ ] Team name
-- [ ] Upload docs/demo/build/saferoute-demo.mp4 to YouTube (Unlisted), paste link in 8 and the X post
+- [x] YouTube (Unlisted): https://youtu.be/Mu_J3iWJPNE
 - [ ] Post on X, paste link in 5
 - [ ] Paste 6, 9, 10, 11 (and 12) from this file
 - [ ] Tick the promotion consent; submit before 11/5 05:00 KST (deadline 11/5 11:00 KST)

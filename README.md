@@ -22,7 +22,7 @@ Built during the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), In
 One screen, no navigation. Top to bottom: hazard buttons → action verb and what not to do → arrow, metres, minutes, destination → school-gate warning with the alternative → **📞 119** (one tap opens the dialer) → offline map → offline questions. Preparation (step-free, with a child, plan agent, learned places) is folded at the bottom and remembered, so nobody looks for a switch during an alert. The screen stays on; home-screen shortcuts open straight into the earthquake or flood screen.
 
 ## Demo
-3-minute video: *(YouTube link)* · source: `docs/demo/` (3b1b-style scenes on the real Seoul map + real phone recordings in airplane mode).
+3-minute video: **https://youtu.be/Mu_J3iWJPNE** · source: `docs/demo/` (3b1b-style scenes on the real Seoul map + real phone recordings in airplane mode).
 
 ## Meta models
 | Model | Role |
